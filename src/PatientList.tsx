@@ -97,12 +97,12 @@ export default function PatientList({ patients, onEdit, onDelete, onAddNew }: Pa
                 <th className="px-4 py-4">Teknik</th>
                 <th className="px-4 py-4">Hasta Adı Soyadı</th>
                 <th className="px-4 py-4">Protokol No</th>
+                <th className="px-4 py-4">Cerrah</th>
                 <th className="px-4 py-4">Telefon / WhatsApp</th>
                 <th className="px-4 py-4">Operasyon Tarihi</th>
                 <th className="px-4 py-4">Yaş / BMI</th>
                 <th className="px-4 py-4">Preop PSA</th>
                 <th className="px-4 py-4">Konsol Süresi</th>
-                <th className="px-4 py-4">Cerrahi Sınır</th>
                 <th className="px-4 py-4 text-right">İşlemler</th>
               </tr>
             </thead>
@@ -115,7 +115,7 @@ export default function PatientList({ patients, onEdit, onDelete, onAddNew }: Pa
                 </tr>
               ) : (
                 filteredPatients.map((p) => {
-                  const waLink = getWhatsAppLink(p.phone, p.patient_name);
+                  const waLink = getWhatsAppLink(p.phone, p.patient_name, p.surgeon);
 
                   return (
                     <tr key={p.id} className="hover:bg-blue-50/60 transition-colors group border-b border-slate-100">
@@ -135,6 +135,11 @@ export default function PatientList({ patients, onEdit, onDelete, onAddNew }: Pa
                         {p.protocol || '-'}
                       </td>
                       <td className="px-4 py-3.5">
+                        <span className="px-2 py-1 bg-slate-100 rounded text-[11px] font-black text-slate-800 border border-slate-300">
+                          {p.surgeon || 'FK'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3.5">
                         {p.phone ? (
                           <div className="flex items-center gap-2">
                             <span className="font-mono text-slate-800">{p.phone}</span>
@@ -143,8 +148,8 @@ export default function PatientList({ patients, onEdit, onDelete, onAddNew }: Pa
                                 href={waLink}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="px-2 py-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-[10px] font-black inline-flex items-center gap-1 shadow-sm transition-all"
-                                title="WhatsApp ile mesaj gönder"
+                                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-black inline-flex items-center gap-1 shadow-sm transition-all"
+                                title="WhatsApp Business ile mesaj gönder"
                               >
                                 <MessageSquare size={12} /> WhatsApp
                               </a>
@@ -165,17 +170,6 @@ export default function PatientList({ patients, onEdit, onDelete, onAddNew }: Pa
                       </td>
                       <td className="px-4 py-3.5 text-slate-800">
                         {p.console_time ? `${p.console_time} dk` : '-'}
-                      </td>
-                      <td className="px-4 py-3.5">
-                        <span className={`px-2.5 py-1 rounded text-[11px] font-black ${
-                          p.surgical_margin?.includes('+') || p.surgical_margin?.toLowerCase().includes('pozitif')
-                            ? 'bg-rose-100 text-rose-900 border border-rose-300'
-                            : p.surgical_margin
-                              ? 'bg-slate-100 text-slate-900 border border-slate-300'
-                              : 'text-slate-500'
-                        }`}>
-                          {p.surgical_margin || '-'}
-                        </span>
                       </td>
                       <td className="px-4 py-3.5 text-right">
                         <div className="flex items-center justify-end gap-2">
@@ -246,16 +240,16 @@ export default function PatientList({ patients, onEdit, onDelete, onAddNew }: Pa
                 <div>
                   <span className="text-slate-600 block mb-1">Telefon / WhatsApp:</span>
                   {selectedPatient.phone ? (
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-slate-900">{selectedPatient.phone}</span>
-                      {getWhatsAppLink(selectedPatient.phone, selectedPatient.patient_name) && (
+                    <div className="flex flex-col gap-2 items-start mt-1">
+                      <span className="font-mono text-slate-900 text-sm">{selectedPatient.phone}</span>
+                      {getWhatsAppLink(selectedPatient.phone, selectedPatient.patient_name, selectedPatient.surgeon) && (
                         <a
-                          href={getWhatsAppLink(selectedPatient.phone, selectedPatient.patient_name)!}
+                          href={getWhatsAppLink(selectedPatient.phone, selectedPatient.patient_name, selectedPatient.surgeon)!}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-black inline-flex items-center gap-1 shadow-sm transition-all"
+                          className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black inline-flex items-center gap-1.5 shadow-md shadow-emerald-600/30 transition-all"
                         >
-                          <MessageSquare size={14} /> WhatsApp'tan Yaz
+                          <MessageSquare size={16} /> WhatsApp'tan Yaz (Dr. Fırat Yıldırım)
                         </a>
                       )}
                     </div>
