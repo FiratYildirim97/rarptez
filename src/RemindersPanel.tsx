@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Patient } from './types';
-import { openWhatsAppBusiness, getWhatsAppLink } from './utils';
-import { Bell, Calendar, MessageSquare, AlertCircle, CheckCircle, Clock, Search } from 'lucide-react';
+import { openWhatsAppBusiness } from './utils';
+import { Bell, Calendar, MessageSquare, AlertCircle, CheckCircle, Clock, Search, Microscope } from 'lucide-react';
 
 interface RemindersPanelProps {
   patients: Patient[];
@@ -13,6 +13,7 @@ export interface ReminderItem {
   periodLabel: string;
   daysPassed: number;
   status: 'DUE' | 'OVERDUE' | 'DONE';
+  messageType: 'PATHOLOGY_1M' | 'FOLLOWUP_3M' | 'FOLLOWUP_6M' | 'FOLLOWUP_12M';
 }
 
 export default function RemindersPanel({ patients }: RemindersPanelProps) {
@@ -34,47 +35,52 @@ export default function RemindersPanel({ patients }: RemindersPanelProps) {
       const diffTime = Math.abs(now.getTime() - opDate.getTime());
       const daysPassed = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-      // 1. Ay (30-60 gün)
-      if (daysPassed >= 25 && daysPassed <= 75) {
+      // 1. Ay Patoloji Kontrolü (15-75 gün)
+      if (daysPassed >= 15 && daysPassed <= 75) {
+        const hasPathology = Boolean(p.pathology && p.pathology.trim() !== '');
         items.push({
           patient: p,
           period: '1m',
-          periodLabel: '1. Ay Kontrolü',
+          periodLabel: '1. Ay Patoloji Kontrolü',
           daysPassed,
-          status: p.ipss_1m !== null && p.ipss_1m !== undefined ? 'DONE' : (daysPassed > 45 ? 'OVERDUE' : 'DUE')
+          status: hasPathology ? 'DONE' : (daysPassed > 45 ? 'OVERDUE' : 'DUE'),
+          messageType: 'PATHOLOGY_1M'
         });
       }
 
-      // 3. Ay (80-140 gün)
+      // 3. Ay Kontrolü (80-140 gün)
       if (daysPassed >= 80 && daysPassed <= 140) {
         items.push({
           patient: p,
           period: '3m',
           periodLabel: '3. Ay Kontrolü',
           daysPassed,
-          status: p.ipss_3m !== null && p.ipss_3m !== undefined ? 'DONE' : (daysPassed > 105 ? 'OVERDUE' : 'DUE')
+          status: p.ipss_3m !== null && p.ipss_3m !== undefined ? 'DONE' : (daysPassed > 105 ? 'OVERDUE' : 'DUE'),
+          messageType: 'FOLLOWUP_3M'
         });
       }
 
-      // 6. Ay (160-230 gün)
+      // 6. Ay Kontrolü (160-230 gün)
       if (daysPassed >= 160 && daysPassed <= 230) {
         items.push({
           patient: p,
           period: '6m',
           periodLabel: '6. Ay Kontrolü',
           daysPassed,
-          status: p.ipss_6m !== null && p.ipss_6m !== undefined ? 'DONE' : (daysPassed > 195 ? 'OVERDUE' : 'DUE')
+          status: p.ipss_6m !== null && p.ipss_6m !== undefined ? 'DONE' : (daysPassed > 195 ? 'OVERDUE' : 'DUE'),
+          messageType: 'FOLLOWUP_6M'
         });
       }
 
-      // 12. Ay (340-420 gün)
+      // 12. Ay Kontrolü (340-420 gün)
       if (daysPassed >= 340 && daysPassed <= 420) {
         items.push({
           patient: p,
           period: '12m',
           periodLabel: '12. Ay Kontrolü',
           daysPassed,
-          status: p.ipss_12m !== null && p.ipss_12m !== undefined ? 'DONE' : (daysPassed > 380 ? 'OVERDUE' : 'DUE')
+          status: p.ipss_12m !== null && p.ipss_12m !== undefined ? 'DONE' : (daysPassed > 380 ? 'OVERDUE' : 'DUE'),
+          messageType: 'FOLLOWUP_12M'
         });
       }
     });
@@ -105,7 +111,7 @@ export default function RemindersPanel({ patients }: RemindersPanelProps) {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-amber-500 text-white p-6 rounded-2xl shadow-xl flex items-center justify-between">
           <div>
-            <p className="text-xs font-black uppercase tracking-wider text-amber-100">Kontrol Zamanı Geldi</p>
+            <p className="text-xs font-black uppercase tracking-wider text-amber-100">Kontrol / Patoloji Zamanı Geldi</p>
             <h3 className="text-3xl font-black mt-1">{dueCount} Hasta</h3>
           </div>
           <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
@@ -115,7 +121,7 @@ export default function RemindersPanel({ patients }: RemindersPanelProps) {
 
         <div className="bg-rose-600 text-white p-6 rounded-2xl shadow-xl flex items-center justify-between">
           <div>
-            <p className="text-xs font-black uppercase tracking-wider text-rose-100">Günü Geçmiş / Eksik Takip</p>
+            <p className="text-xs font-black uppercase tracking-wider text-rose-100">Günü Geçmiş / Eksik Patoloji</p>
             <h3 className="text-3xl font-black mt-1">{overdueCount} Hasta</h3>
           </div>
           <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
@@ -125,7 +131,7 @@ export default function RemindersPanel({ patients }: RemindersPanelProps) {
 
         <div className="bg-emerald-600 text-white p-6 rounded-2xl shadow-xl flex items-center justify-between">
           <div>
-            <p className="text-xs font-black uppercase tracking-wider text-emerald-100">Tamamlanan Kontroller</p>
+            <p className="text-xs font-black uppercase tracking-wider text-emerald-100">Tamamlanan Patoloji & Kontroller</p>
             <h3 className="text-3xl font-black mt-1">{doneCount} Hasta</h3>
           </div>
           <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
@@ -149,11 +155,11 @@ export default function RemindersPanel({ patients }: RemindersPanelProps) {
           </button>
           <button
             onClick={() => setSelectedPeriod('1m')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all ${
-              selectedPeriod === '1m' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-100 text-slate-800 hover:bg-slate-200 border border-slate-300'
+            className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
+              selectedPeriod === '1m' ? 'bg-purple-600 text-white shadow-md' : 'bg-slate-100 text-slate-800 hover:bg-slate-200 border border-slate-300'
             }`}
           >
-            1. Ay Kontrolleri
+            <Microscope size={14} /> 1. Ay Patoloji Kontrolü
           </button>
           <button
             onClick={() => setSelectedPeriod('3m')}
@@ -161,7 +167,7 @@ export default function RemindersPanel({ patients }: RemindersPanelProps) {
               selectedPeriod === '3m' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-100 text-slate-800 hover:bg-slate-200 border border-slate-300'
             }`}
           >
-            3. Ay Kontrolleri
+            3. Ay Kontrolü
           </button>
           <button
             onClick={() => setSelectedPeriod('6m')}
@@ -169,7 +175,7 @@ export default function RemindersPanel({ patients }: RemindersPanelProps) {
               selectedPeriod === '6m' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-100 text-slate-800 hover:bg-slate-200 border border-slate-300'
             }`}
           >
-            6. Ay Kontrolleri
+            6. Ay Kontrolü
           </button>
           <button
             onClick={() => setSelectedPeriod('12m')}
@@ -177,7 +183,7 @@ export default function RemindersPanel({ patients }: RemindersPanelProps) {
               selectedPeriod === '12m' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-100 text-slate-800 hover:bg-slate-200 border border-slate-300'
             }`}
           >
-            12. Ay Kontrolleri
+            12. Ay Kontrolü
           </button>
         </div>
 
@@ -202,7 +208,7 @@ export default function RemindersPanel({ patients }: RemindersPanelProps) {
                 <th className="px-4 py-4">Durum</th>
                 <th className="px-4 py-4">Hasta Adı Soyadı</th>
                 <th className="px-4 py-4">Teknik & Cerrah</th>
-                <th className="px-4 py-4">Kontrol Dönemi</th>
+                <th className="px-4 py-4">Kontrol Türü</th>
                 <th className="px-4 py-4">Op. Sonrası Süre</th>
                 <th className="px-4 py-4 text-right">WhatsApp Daveti</th>
               </tr>
@@ -240,7 +246,8 @@ export default function RemindersPanel({ patients }: RemindersPanelProps) {
                       </span>
                       <span className="text-slate-700 font-extrabold">{r.patient.surgeon || 'FK'}</span>
                     </td>
-                    <td className="px-4 py-3.5 font-black text-blue-900">
+                    <td className="px-4 py-3.5 font-black text-purple-900 flex items-center gap-1.5 mt-1">
+                      {r.period === '1m' && <Microscope size={14} className="text-purple-600" />}
                       {r.periodLabel}
                     </td>
                     <td className="px-4 py-3.5 text-slate-800">
@@ -249,10 +256,10 @@ export default function RemindersPanel({ patients }: RemindersPanelProps) {
                     <td className="px-4 py-3.5 text-right">
                       {r.patient.phone ? (
                         <button
-                          onClick={() => openWhatsAppBusiness(r.patient.phone, r.patient.patient_name, r.patient.surgeon)}
+                          onClick={() => openWhatsAppBusiness(r.patient.phone, r.patient.patient_name, r.patient.surgeon, r.messageType)}
                           className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-md shadow-emerald-600/30 inline-flex items-center gap-1.5 transition-all"
                         >
-                          <MessageSquare size={14} /> WhatsApp Kontrol Mesajı Gönder
+                          <MessageSquare size={14} /> WhatsApp {r.period === '1m' ? 'Patoloji' : 'Kontrol'} Mesajı
                         </button>
                       ) : (
                         <span className="text-slate-400 font-normal">Telefon yok</span>
