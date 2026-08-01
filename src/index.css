@@ -1,0 +1,105 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  
+  --color-medical-50: #f0f7ff;
+  --color-medical-100: #e0effe;
+  --color-medical-200: #bae0fd;
+  --color-medical-300: #7cc8fb;
+  --color-medical-400: #38a9f8;
+  --color-medical-500: #0e8ce6;
+  --color-medical-600: #026dc2;
+  --color-medical-700: #03579e;
+  --color-medical-800: #074a82;
+  --color-medical-900: #0c3f6d;
+}
+
+@layer base {
+  body {
+    @apply bg-[#F8FAFC] text-slate-800 antialiased overflow-hidden selection:bg-blue-500/[.3];
+  }
+}
+
+@utility glass {
+  background-color: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: 1rem;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.05);
+}
+
+@utility glass-sidebar {
+  background-color: #0F172A;
+  border-radius: 1rem;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.1);
+}
+
+@utility glass-card {
+  background-color: rgba(255, 255, 255, 1);
+  border: 1px solid #E2E8F0;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.03);
+  transition: all 0.2s ease;
+  &:hover {
+    border-color: rgba(59, 130, 246, 0.3);
+    box-shadow: 0 4px 20px rgba(59, 130, 246, 0.08);
+  }
+}
+
+@utility input-field {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  color: #0f172a;
+  font-size: 0.875rem;
+  outline: none;
+  transition: all 0.2s ease;
+  &::placeholder {
+    color: #94a3b8;
+  }
+  &:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+  }
+}
+
+@utility label-text {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.375rem;
+}
+
+@utility card {
+  @apply glass-card p-6;
+}
+
+.custom-scroll::-webkit-scrollbar {
+  width: 5px;
+}
+
+.custom-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scroll::-webkit-scrollbar-thumb {
+  @apply bg-white/10 rounded-full hover:bg-white/20 transition-colors;
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}

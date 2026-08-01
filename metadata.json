@@ -1,0 +1,8 @@
+{
+  "name": "RARP Tez Hasta Takip Sistemi",
+  "description": "Robotik Radikal Prostatektomide Hood Tekniği ve Standart Tekniğin Kapsamlı Karşılaştırmalı Analizi için Veri Kayıt Sistemi",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
