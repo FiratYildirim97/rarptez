@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from "react";
 import Dashboard from "./Dashboard";
 import PatientList from "./PatientList";
 import PatientForm from "./PatientForm";
+import RemindersPanel from "./RemindersPanel";
+import ThesisStats from "./ThesisStats";
 import { Patient, getInitialPatient } from "./types";
 import { exportToExcel } from "./ExportUtils";
 import { supabase } from "./supabaseClient";
@@ -15,13 +17,15 @@ import {
   Menu, 
   ShieldCheck, 
   RefreshCw, 
-  Globe 
+  Globe,
+  Bell,
+  FileSpreadsheet
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 export default function App() {
   const [patients, setPatients] = useState<Patient[]>([]);
-  const [view, setView] = useState<"dashboard" | "list" | "form">("dashboard");
+  const [view, setView] = useState<"dashboard" | "list" | "form" | "reminders" | "thesis">("dashboard");
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
@@ -197,7 +201,7 @@ export default function App() {
         isSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
       }`}>
         <div className="p-6 flex flex-col h-full">
-          <div className="text-center mb-8">
+          <div className="text-center mb-6">
             <div className="bg-gradient-to-tr from-blue-600 to-indigo-600 w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg shadow-blue-500/30">
               <ShieldCheck size={28} className="text-white" />
             </div>
@@ -216,7 +220,23 @@ export default function App() {
                 view === "dashboard" ? "bg-blue-600 text-white shadow-lg shadow-blue-600/40" : "text-slate-300 hover:bg-slate-800 hover:text-white"
               }`}
             >
-              <LayoutDashboard size={18} /> İstatistik & Analiz
+              <LayoutDashboard size={18} /> İstatistik & Grafik Paneli
+            </button>
+            <button
+              onClick={() => { setView("reminders"); if (window.innerWidth < 1024) setIsSidebarOpen(false); }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-bold text-xs ${
+                view === "reminders" ? "bg-amber-600 text-white shadow-lg shadow-amber-600/40" : "text-slate-300 hover:bg-slate-800 hover:text-white"
+              }`}
+            >
+              <Bell size={18} /> 🔔 Yaklaşan Kontroller
+            </button>
+            <button
+              onClick={() => { setView("thesis"); if (window.innerWidth < 1024) setIsSidebarOpen(false); }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-bold text-xs ${
+                view === "thesis" ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/40" : "text-slate-300 hover:bg-slate-800 hover:text-white"
+              }`}
+            >
+              <FileSpreadsheet size={18} /> 📊 Tez İstatistikleri (SPSS)
             </button>
             <button
               onClick={() => { setView("list"); if (window.innerWidth < 1024) setIsSidebarOpen(false); }}
@@ -236,18 +256,18 @@ export default function App() {
             </button>
           </nav>
 
-          <div className="mt-8 border-t border-slate-800 pt-6">
+          <div className="mt-6 border-t border-slate-800 pt-5">
             <span className="px-2 text-[11px] uppercase font-extrabold text-slate-400 tracking-wider block">Veri Yönetimi</span>
-            <div className="space-y-1 mt-3">
+            <div className="space-y-1 mt-2">
               <button 
                 onClick={() => exportToExcel(patients)}
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-xs text-emerald-400 hover:bg-emerald-950/50 rounded-xl transition-colors font-bold"
+                className="w-full flex items-center gap-3 px-4 py-2 text-xs text-emerald-400 hover:bg-emerald-950/50 rounded-xl transition-colors font-bold"
               >
                 <Download size={16} /> Excel (.xlsx) İndir
               </button>
               <button 
                 onClick={() => fileInputRef.current?.click()}
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-xs text-blue-400 hover:bg-blue-950/50 rounded-xl transition-colors font-bold"
+                className="w-full flex items-center gap-3 px-4 py-2 text-xs text-blue-400 hover:bg-blue-950/50 rounded-xl transition-colors font-bold"
               >
                 <Upload size={16} /> Excel Yükle (Import)
               </button>
@@ -261,14 +281,14 @@ export default function App() {
             </div>
           </div>
 
-          <div className="mt-auto pt-6 border-t border-slate-800">
+          <div className="mt-auto pt-5 border-t border-slate-800">
             <div className="flex items-center gap-3 px-2">
               <div className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold shadow">
                 ÜA
               </div>
               <div>
                 <span className="text-xs font-bold text-slate-100 block">Üroloji Anabilim Dalı</span>
-                <span className="text-[10px] text-slate-400 block font-medium">Ege Üniversitesi Tez</span>
+                <span className="text-[10px] text-slate-400 block font-medium">Dr. Fırat Yıldırım</span>
               </div>
             </div>
           </div>
@@ -288,6 +308,8 @@ export default function App() {
             </button>
             <h2 className="text-base font-extrabold text-slate-900">
               {view === "dashboard" ? "İstatistik & Karşılaştırmalı Analiz Paneli" :
+               view === "reminders" ? "🔔 Yaklaşan Kontrol Hatırlatıcı Paneli" :
+               view === "thesis" ? "📊 Tez İstatistiksel Analiz Modülü (SPSS / t-test)" :
                view === "list" ? "Hasta Kayıt Veritabanı (Supabase)" :
                "Yeni Hasta Kayıt Portalı (Varsayılan: HOOD)"}
             </h2>
@@ -322,6 +344,28 @@ export default function App() {
                 exit={{ opacity: 0, y: -10 }}
               >
                 <Dashboard patients={patients} />
+              </motion.div>
+            )}
+
+            {view === "reminders" && (
+              <motion.div
+                key="reminders"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+              >
+                <RemindersPanel patients={patients} />
+              </motion.div>
+            )}
+
+            {view === "thesis" && (
+              <motion.div
+                key="thesis"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+              >
+                <ThesisStats patients={patients} />
               </motion.div>
             )}
 
