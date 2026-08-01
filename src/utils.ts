@@ -39,7 +39,7 @@ export function getInitialPatient() {
   };
 }
 
-export function getWhatsAppLink(phone: string | null | undefined, patientName?: string, surgeon?: string | null) {
+export function getWhatsAppLink(phone: string | null | undefined, patientName?: string, surgeon?: string | null, isBusiness: boolean = true) {
   if (!phone) return null;
   let digits = String(phone).replace(/\D/g, '');
   if (!digits) return null;
@@ -67,5 +67,31 @@ export function getWhatsAppLink(phone: string | null | undefined, patientName?: 
 
   const rawMessage = `Merhaba Sayın ${pName}, ben Ege Üniversitesi Üroloji Anabilim Dalı'ndan ${doctorTitle}. Ameliyatınız sonrası kontrol ve takip durumunuz hakkında bilgi almak için iletişime geçiyorum. Müsait olduğunuzda dönüş yapabilirseniz sevinirim.`;
 
-  return `https://wa.me/${digits}?text=${encodeURIComponent(rawMessage)}`;
+  const encodedMsg = encodeURIComponent(rawMessage);
+
+  if (isBusiness) {
+    // Custom iOS & Android URI scheme for WhatsApp Business
+    return `whatsapp-business://send?phone=${digits}&text=${encodedMsg}`;
+  }
+
+  return `https://wa.me/${digits}?text=${encodedMsg}`;
+}
+
+export function openWhatsAppBusiness(phone: string | null | undefined, patientName?: string, surgeon?: string | null) {
+  if (!phone) return;
+  const businessUri = getWhatsAppLink(phone, patientName, surgeon, true);
+  const webUri = getWhatsAppLink(phone, patientName, surgeon, false);
+
+  if (!businessUri || !webUri) return;
+
+  // Primary attempt: WhatsApp Business protocol
+  const start = Date.now();
+  window.location.href = businessUri;
+
+  // Fallback to standard web URL if Business app protocol fails to launch
+  setTimeout(() => {
+    if (Date.now() - start < 2000) {
+      window.open(webUri, '_blank');
+    }
+  }, 1200);
 }
