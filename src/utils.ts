@@ -43,8 +43,7 @@ export function getWhatsAppLink(
   phone: string | null | undefined, 
   patientName?: string, 
   surgeon?: string | null, 
-  isBusiness: boolean = true,
-  messageType: 'GENERAL' | 'PATHOLOGY_1M' | 'FOLLOWUP_3M' | 'FOLLOWUP_6M' | 'FOLLOWUP_12M' = 'GENERAL'
+  isBusiness: boolean = true
 ) {
   if (!phone) return null;
   let digits = String(phone).replace(/\D/g, '');
@@ -69,17 +68,7 @@ export function getWhatsAppLink(
 
   const pName = patientName ? patientName.trim() : 'Hasta';
 
-  let rawMessage = `Merhaba Sayın ${pName}, ben Ege Üniversitesi Üroloji Anabilim Dalı'ndan ${doctorTitle}. Ameliyatınız sonrası kontrol ve takip durumunuz hakkında bilgi almak için iletişime geçiyorum. Müsait olduğunuzda dönüş yapabilirseniz sevinirim.`;
-
-  if (messageType === 'PATHOLOGY_1M') {
-    rawMessage = `Merhaba Sayın ${pName}, ben Ege Üniversitesi Üroloji Anabilim Dalı'ndan ${doctorTitle}. Ameliyatınız sonrası çıkmış olan patoloji sonucunuzu değerlendirmek ve 1. ay kontrolünüzü planlamak için iletişime geçiyorum. Müsait olduğunuzda dönüş yapabilir misiniz?`;
-  } else if (messageType === 'FOLLOWUP_3M') {
-    rawMessage = `Merhaba Sayın ${pName}, ben Ege Üniversitesi Üroloji Anabilim Dalı'ndan ${doctorTitle}. Ameliyatınızın 3. ay kontrol zamanı gelmiştir. Semptomlarınız ve ped takip durumunuz hakkında bilgi almak için iletişime geçiyorum. Müsait olduğunuzda yazabilir misiniz?`;
-  } else if (messageType === 'FOLLOWUP_6M') {
-    rawMessage = `Merhaba Sayın ${pName}, ben Ege Üniversitesi Üroloji Anabilim Dalı'ndan ${doctorTitle}. Ameliyatınızın 6. ay kontrol zamanı gelmiştir. IPSS, erektil fonksiyon ve ped takip durumunuz hakkında bilgi almak için iletişime geçiyorum. Müsait olduğunuzda yazabilir misiniz?`;
-  } else if (messageType === 'FOLLOWUP_12M') {
-    rawMessage = `Merhaba Sayın ${pName}, ben Ege Üniversitesi Üroloji Anabilim Dalı'ndan ${doctorTitle}. Ameliyatınızın 12. ay (1. yıl) yıllık genel kontrol zamanı gelmiştir. Takip durumunuz hakkında bilgi almak için iletişime geçiyorum. Müsait olduğunuzda yazabilir misiniz?`;
-  }
+  const rawMessage = `Merhaba Sayın ${pName}, ben Ege Üniversitesi Üroloji Anabilim Dalı'ndan ${doctorTitle}. Ameliyatınız sonrası kontrol ve takip durumunuz hakkında bilgi almak için iletişime geçiyorum. Müsait olduğunuzda dönüş yapabilirseniz sevinirim.`;
 
   const encodedMsg = encodeURIComponent(rawMessage);
 
@@ -93,12 +82,11 @@ export function getWhatsAppLink(
 export function openWhatsAppBusiness(
   phone: string | null | undefined, 
   patientName?: string, 
-  surgeon?: string | null,
-  messageType: 'GENERAL' | 'PATHOLOGY_1M' | 'FOLLOWUP_3M' | 'FOLLOWUP_6M' | 'FOLLOWUP_12M' = 'GENERAL'
+  surgeon?: string | null
 ) {
   if (!phone) return;
-  const businessUri = getWhatsAppLink(phone, patientName, surgeon, true, messageType);
-  const webUri = getWhatsAppLink(phone, patientName, surgeon, false, messageType);
+  const businessUri = getWhatsAppLink(phone, patientName, surgeon, true);
+  const webUri = getWhatsAppLink(phone, patientName, surgeon, false);
 
   if (!businessUri || !webUri) return;
 

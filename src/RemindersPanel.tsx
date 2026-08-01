@@ -13,7 +13,6 @@ export interface ReminderItem {
   periodLabel: string;
   daysPassed: number;
   status: 'DUE' | 'OVERDUE' | 'DONE';
-  messageType: 'PATHOLOGY_1M' | 'FOLLOWUP_3M' | 'FOLLOWUP_6M' | 'FOLLOWUP_12M';
 }
 
 export default function RemindersPanel({ patients }: RemindersPanelProps) {
@@ -43,8 +42,7 @@ export default function RemindersPanel({ patients }: RemindersPanelProps) {
           period: '1m',
           periodLabel: '1. Ay Patoloji Kontrolü',
           daysPassed,
-          status: hasPathology ? 'DONE' : (daysPassed > 45 ? 'OVERDUE' : 'DUE'),
-          messageType: 'PATHOLOGY_1M'
+          status: hasPathology ? 'DONE' : (daysPassed > 45 ? 'OVERDUE' : 'DUE')
         });
       }
 
@@ -55,8 +53,7 @@ export default function RemindersPanel({ patients }: RemindersPanelProps) {
           period: '3m',
           periodLabel: '3. Ay Kontrolü',
           daysPassed,
-          status: p.ipss_3m !== null && p.ipss_3m !== undefined ? 'DONE' : (daysPassed > 105 ? 'OVERDUE' : 'DUE'),
-          messageType: 'FOLLOWUP_3M'
+          status: p.ipss_3m !== null && p.ipss_3m !== undefined ? 'DONE' : (daysPassed > 105 ? 'OVERDUE' : 'DUE')
         });
       }
 
@@ -67,8 +64,7 @@ export default function RemindersPanel({ patients }: RemindersPanelProps) {
           period: '6m',
           periodLabel: '6. Ay Kontrolü',
           daysPassed,
-          status: p.ipss_6m !== null && p.ipss_6m !== undefined ? 'DONE' : (daysPassed > 195 ? 'OVERDUE' : 'DUE'),
-          messageType: 'FOLLOWUP_6M'
+          status: p.ipss_6m !== null && p.ipss_6m !== undefined ? 'DONE' : (daysPassed > 195 ? 'OVERDUE' : 'DUE')
         });
       }
 
@@ -79,8 +75,7 @@ export default function RemindersPanel({ patients }: RemindersPanelProps) {
           period: '12m',
           periodLabel: '12. Ay Kontrolü',
           daysPassed,
-          status: p.ipss_12m !== null && p.ipss_12m !== undefined ? 'DONE' : (daysPassed > 380 ? 'OVERDUE' : 'DUE'),
-          messageType: 'FOLLOWUP_12M'
+          status: p.ipss_12m !== null && p.ipss_12m !== undefined ? 'DONE' : (daysPassed > 380 ? 'OVERDUE' : 'DUE')
         });
       }
     });
@@ -210,7 +205,7 @@ export default function RemindersPanel({ patients }: RemindersPanelProps) {
                 <th className="px-4 py-4">Teknik & Cerrah</th>
                 <th className="px-4 py-4">Kontrol Türü</th>
                 <th className="px-4 py-4">Op. Sonrası Süre</th>
-                <th className="px-4 py-4 text-right">WhatsApp Daveti</th>
+                <th className="px-4 py-4 text-right">WhatsApp Business</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 font-bold text-slate-900">
@@ -256,10 +251,10 @@ export default function RemindersPanel({ patients }: RemindersPanelProps) {
                     <td className="px-4 py-3.5 text-right">
                       {r.patient.phone ? (
                         <button
-                          onClick={() => openWhatsAppBusiness(r.patient.phone, r.patient.patient_name, r.patient.surgeon, r.messageType)}
+                          onClick={() => openWhatsAppBusiness(r.patient.phone, r.patient.patient_name, r.patient.surgeon)}
                           className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-md shadow-emerald-600/30 inline-flex items-center gap-1.5 transition-all"
                         >
-                          <MessageSquare size={14} /> WhatsApp {r.period === '1m' ? 'Patoloji' : 'Kontrol'} Mesajı
+                          <MessageSquare size={14} /> WhatsApp Mesajı Gönder
                         </button>
                       ) : (
                         <span className="text-slate-400 font-normal">Telefon yok</span>
