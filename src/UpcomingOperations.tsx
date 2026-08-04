@@ -166,18 +166,15 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
 
   return (
     <div className="space-y-6 text-slate-900">
-      {/* Header Banner */}
+      {/* Clean Header Banner */}
       <div className="bg-gradient-to-r from-slate-900 to-blue-950 text-white p-6 rounded-2xl shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-black flex items-center gap-2.5">
-            <Calendar className="text-blue-400" size={26} /> Gelecek Operasyonlar
+            <Calendar className="text-blue-400" size={28} /> Gelecek Operasyonlar
           </h2>
-          <p className="text-xs text-slate-300 mt-1">
-            Gelecek robotik prostatektomi ameliyatlarınızı bu alandan takip edebilir ve tamamlandığında teze aktarabilirsiniz.
-          </p>
         </div>
 
-        {/* EXACTLY 2 BUTTONS ONLY */}
+        {/* EXACTLY 2 BUTTONS WITH TITLE CASE */}
         <div className="flex items-center gap-3">
           <button
             onClick={loadSecondarySupabaseCases}
@@ -186,14 +183,14 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
             title="Ameliyat listesinden hastaları çek"
           >
             <Zap size={16} className={isSyncing ? "animate-spin text-yellow-200" : "text-yellow-300"} />
-            {isSyncing ? "Hastalar Çekiliyor..." : "Listeden hasta çek"}
+            {isSyncing ? "Hastalar Çekiliyor..." : "Listeden Hasta Çek"}
           </button>
 
           <button
             onClick={() => setShowAddModal(true)}
             className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black rounded-xl shadow-lg shadow-blue-600/30 flex items-center gap-2 transition-all shrink-0"
           >
-            <Plus size={16} /> Manuel Hasta ekle
+            <Plus size={16} /> Manuel Hasta Ekle
           </button>
         </div>
       </div>
@@ -212,7 +209,7 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
           <div className="col-span-full bg-white p-12 rounded-2xl border border-slate-200 text-center space-y-3">
             <p className="text-slate-700 font-black text-base">Henüz Gelecek Ameliyat Kaydı Bulunmuyor</p>
             <p className="text-xs text-slate-500 max-w-md mx-auto">
-              Yukarıdaki <strong>"Listeden hasta çek"</strong> butonuna basarak ameliyat listesinden vakaları aktarabilir veya <strong>"Manuel Hasta ekle"</strong> butonunu kullanabilirsiniz.
+              Yukarıdaki <strong>"Listeden Hasta Çek"</strong> butonuna basarak ameliyat listesinden vakaları aktarabilir veya <strong>"Manuel Hasta Ekle"</strong> butonunu kullanabilirsiniz.
             </p>
           </div>
         ) : (
