@@ -124,27 +124,25 @@ function extractNotes(d: any): string | null {
   return null;
 }
 
-// Flexible & ultra-tolerant case-insensitive check for robotic prostatectomy keywords
-function isStrictRoboticProstatectomyCase(item: any): boolean {
+function isRoboticProstatectomyCase(item: any): boolean {
   if (!item || typeof item !== 'object') return false;
 
   const rawOp = item.operation || item.op_type || item.ameliyat || item.title || item.notes || '';
   const opText = toTrLowerCase(String(rawOp));
-
-  // Also search entire JSON string in case operation column is named slightly differently
   const fullText = toTrLowerCase(JSON.stringify(item));
 
-  const strictKeywords = [
+  const keywords = [
     'robot rp',
     'robotik rp',
     'robotik radikal prostatektomi',
     'prostatektomi',
     'prostatectomy',
     'rarp',
-    'radikal prostatektomi'
+    'radikal prostatektomi',
+    'robot'
   ];
 
-  for (const kw of strictKeywords) {
+  for (const kw of keywords) {
     const kwLower = toTrLowerCase(kw);
     if (opText.includes(kwLower) || fullText.includes(kwLower)) {
       return true;
@@ -159,9 +157,11 @@ export async function fetchFromSecondarySupabase(minOpDate?: string | null): Pro
   const cutoffDate = minOpDate || new Date().toISOString().split('T')[0];
 
   try {
+    // Range 0 to 10000 ensures Supabase default 1000 row limit is bypassed!
     const { data, error } = await secondarySupabase
       .from('surgeries')
-      .select('*');
+      .select('*')
+      .range(0, 10000);
 
     if (error) {
       console.error("Secondary Supabase surgeries fetch error:", error);
@@ -173,19 +173,20 @@ export async function fetchFromSecondarySupabase(minOpDate?: string | null): Pro
     }
 
     let matchedCount = 0;
-    let skippedReason = "";
+    let skippedOldCount = 0;
+    let skippedNotRobotCount = 0;
 
     data.forEach((item, idx) => {
-      const isRobot = isStrictRoboticProstatectomyCase(item);
+      const isRobot = isRoboticProstatectomyCase(item);
       const opDate = extractOpDate(item);
 
       if (!isRobot) {
-        skippedReason = `[${item.patient_name || item.name || idx}] -> Ameliyat tanımı (${item.operation || item.title}) eşleşmedi.`;
+        skippedNotRobotCount++;
         return;
       }
 
       if (cutoffDate && opDate < cutoffDate) {
-        skippedReason = `[${item.patient_name || item.name || idx}] -> Tarih (${opDate}) bugünden (${cutoffDate}) eski kaldı.`;
+        skippedOldCount++;
         return;
       }
 
@@ -209,7 +210,7 @@ export async function fetchFromSecondarySupabase(minOpDate?: string | null): Pro
       cases, 
       totalFound: data.length, 
       sampleItem: data[0],
-      debugInfo: `Okunan Toplam: ${data.length}, Eşleşen: ${matchedCount}. Sonlanan Neden: ${skippedReason}`
+      debugInfo: `Veritabanında Toplam ${data.length} vaka tarandı. ${matchedCount} ameliyat çekildi (${skippedOldCount} geçmiş tarihli vaka, ${skippedNotRobotCount} farklı ameliyat elendi).`
     };
   } catch (err: any) {
     return { cases: [], rawError: err.message };
