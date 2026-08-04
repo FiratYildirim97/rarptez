@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { UpcomingOperation } from './types';
 
-export const SECONDARY_SUPABASE_URL = 'https://nrmjqjmyyxzkcskdldph.supabase.co';
+export const SECONDARY_SUPABASE_URL = 'https://nrmjqjmyyzkzcskdldph.supabase.co';
 export const SECONDARY_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ybWpxam15eXpremNza2RsZHBoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU4NzUzMzMsImV4cCI6MjEwMTQ1MTMzM30.LaaPffBhRt5TwRn-Adzf8R5YtAbhI8Wf5ykYsdm0byk';
 
 export const secondarySupabase = createClient(SECONDARY_SUPABASE_URL, SECONDARY_SUPABASE_ANON_KEY);
@@ -116,7 +116,6 @@ function isRoboticProstatectomyCase(d: any): boolean {
     if (operationText.includes(toTrLowerCase(kw))) return true;
   }
 
-  // Fallback to true if no operation column filtering is present
   return true;
 }
 
@@ -140,11 +139,9 @@ export async function fetchFromSecondarySupabase(minOpDate?: string | null): Pro
     const sampleItem = data[0];
 
     data.forEach((item, idx) => {
-      // Allow all robotic cases
       if (!isRoboticProstatectomyCase(item)) return;
 
       const opDate = extractOpDate(item);
-      // If cutoff date is provided, filter op_date >= minOpDate
       if (minOpDate && opDate < minOpDate) return;
 
       const patientName = extractPatientName(item);
