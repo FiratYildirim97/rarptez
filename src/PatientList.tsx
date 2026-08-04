@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Patient } from './types';
-import { openWhatsAppBusiness, getWhatsAppLink } from './utils';
+import { getWhatsAppLink } from './utils';
 import { Search, Edit, Trash2, UserPlus, Eye, X, MessageSquare } from 'lucide-react';
 
 interface PatientListProps {
@@ -115,7 +115,7 @@ export default function PatientList({ patients, onEdit, onDelete, onAddNew }: Pa
                 </tr>
               ) : (
                 filteredPatients.map((p) => {
-                  const hasPhone = Boolean(p.phone && p.phone.trim());
+                  const waLink = getWhatsAppLink(p.phone, p.patient_name, p.surgeon);
 
                   return (
                     <tr key={p.id} className="hover:bg-blue-50/60 transition-colors group border-b border-slate-100">
@@ -140,19 +140,21 @@ export default function PatientList({ patients, onEdit, onDelete, onAddNew }: Pa
                         </span>
                       </td>
                       <td className="px-4 py-3.5">
-                        {hasPhone ? (
+                        {p.phone && waLink ? (
                           <div className="flex items-center gap-2">
                             <span className="font-mono text-slate-800">{p.phone}</span>
-                            <button
-                              onClick={() => openWhatsAppBusiness(p.phone, p.patient_name, p.surgeon)}
+                            <a
+                              href={waLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
                               className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-black inline-flex items-center gap-1 shadow-sm transition-all"
-                              title="Öncelikle WhatsApp Business uygulamasını açar"
+                              title="WhatsApp Business uygulamasında veya Web'de mesajı otomatik doldurarak açar"
                             >
-                              <MessageSquare size={12} /> WhatsApp Business
-                            </button>
+                              <MessageSquare size={12} /> WhatsApp
+                            </a>
                           </div>
                         ) : (
-                          <span className="text-slate-400 font-normal">-</span>
+                          <span className="text-slate-400 font-normal">{p.phone || '-'}</span>
                         )}
                       </td>
                       <td className="px-4 py-3.5 text-slate-800">
@@ -235,18 +237,20 @@ export default function PatientList({ patients, onEdit, onDelete, onAddNew }: Pa
                 <p><span className="text-slate-600">Ek Hastalık:</span> {selectedPatient.comorbidity || 'Yok'}</p>
                 <div>
                   <span className="text-slate-600 block mb-1">Telefon / WhatsApp Business:</span>
-                  {selectedPatient.phone ? (
+                  {selectedPatient.phone && getWhatsAppLink(selectedPatient.phone, selectedPatient.patient_name, selectedPatient.surgeon) ? (
                     <div className="flex flex-col gap-2 items-start mt-1">
                       <span className="font-mono text-slate-900 text-sm">{selectedPatient.phone}</span>
-                      <button
-                        onClick={() => openWhatsAppBusiness(selectedPatient.phone, selectedPatient.patient_name, selectedPatient.surgeon)}
+                      <a
+                        href={getWhatsAppLink(selectedPatient.phone, selectedPatient.patient_name, selectedPatient.surgeon)!}
+                        target="_blank"
+                        rel="noopener noreferrer"
                         className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black inline-flex items-center gap-1.5 shadow-md shadow-emerald-600/30 transition-all"
                       >
-                        <MessageSquare size={16} /> WhatsApp Business ile Yaz
-                      </button>
+                        <MessageSquare size={16} /> WhatsApp Business ile Mesaj Gönder
+                      </a>
                     </div>
                   ) : (
-                    <span>-</span>
+                    <span>{selectedPatient.phone || '-'}</span>
                   )}
                 </div>
               </div>

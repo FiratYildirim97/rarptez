@@ -42,19 +42,20 @@ export function getInitialPatient() {
 export function getWhatsAppLink(
   phone: string | null | undefined, 
   patientName?: string, 
-  surgeon?: string | null, 
-  isBusiness: boolean = true
+  surgeon?: string | null
 ) {
   if (!phone) return null;
   let digits = String(phone).replace(/\D/g, '');
   if (!digits) return null;
 
+  // Format Turkish phone numbers (e.g. 555... -> 90555...)
   if (digits.length === 10 && digits.startsWith('5')) {
     digits = '90' + digits;
   } else if (digits.length === 11 && digits.startsWith('05')) {
     digits = '90' + digits.substring(1);
   }
 
+  // Determine surgeon intro title
   const surgeonUpper = (surgeon || '').toUpperCase().trim();
   let doctorTitle = "Dr. Fırat Yıldırım";
 
@@ -67,35 +68,10 @@ export function getWhatsAppLink(
   }
 
   const pName = patientName ? patientName.trim() : 'Hasta';
-
   const rawMessage = `Merhaba Sayın ${pName}, ben Ege Üniversitesi Üroloji Anabilim Dalı'ndan ${doctorTitle}. Ameliyatınız sonrası kontrol ve takip durumunuz hakkında bilgi almak için iletişime geçiyorum. Müsait olduğunuzda dönüş yapabilirseniz sevinirim.`;
 
   const encodedMsg = encodeURIComponent(rawMessage);
 
-  if (isBusiness) {
-    return `whatsapp-business://send?phone=${digits}&text=${encodedMsg}`;
-  }
-
-  return `https://wa.me/${digits}?text=${encodedMsg}`;
-}
-
-export function openWhatsAppBusiness(
-  phone: string | null | undefined, 
-  patientName?: string, 
-  surgeon?: string | null
-) {
-  if (!phone) return;
-  const businessUri = getWhatsAppLink(phone, patientName, surgeon, true);
-  const webUri = getWhatsAppLink(phone, patientName, surgeon, false);
-
-  if (!businessUri || !webUri) return;
-
-  const start = Date.now();
-  window.location.href = businessUri;
-
-  setTimeout(() => {
-    if (Date.now() - start < 2000) {
-      window.open(webUri, '_blank');
-    }
-  }, 1200);
+  // Official WhatsApp API link - Opens WhatsApp / WhatsApp Business directly on iOS, Android & Desktop with prefilled message!
+  return `https://api.whatsapp.com/send?phone=${digits}&text=${encodedMsg}`;
 }

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Patient } from './types';
-import { openWhatsAppBusiness } from './utils';
+import { getWhatsAppLink } from './utils';
 import { Bell, Calendar, MessageSquare, AlertCircle, CheckCircle, Clock, Search, Microscope } from 'lucide-react';
 
 interface RemindersPanelProps {
@@ -216,52 +216,58 @@ export default function RemindersPanel({ patients }: RemindersPanelProps) {
                   </td>
                 </tr>
               ) : (
-                filteredReminders.map((r, idx) => (
-                  <tr key={idx} className="hover:bg-blue-50/60 transition-colors group border-b border-slate-100">
-                    <td className="px-4 py-3.5">
-                      <span className={`inline-flex items-center px-3 py-1 rounded-md text-[11px] font-black ${
-                        r.status === 'OVERDUE'
-                          ? 'bg-rose-100 text-rose-900 border border-rose-300'
-                          : r.status === 'DUE'
-                            ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                            : 'bg-emerald-100 text-emerald-900 border border-emerald-300'
-                      }`}>
-                        {r.status === 'OVERDUE' ? 'Günü Geçti / Eksik' : r.status === 'DUE' ? 'Kontrol Zamanı' : 'Tamamlandı'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3.5 font-black text-slate-900">
-                      {r.patient.patient_name}
-                      <span className="block text-[10px] text-slate-500 font-mono font-normal">Protokol: {r.patient.protocol || '-'}</span>
-                    </td>
-                    <td className="px-4 py-3.5">
-                      <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold mr-2 ${
-                        r.patient.group_name === 'HOOD' ? 'bg-blue-100 text-blue-900' : 'bg-emerald-100 text-emerald-900'
-                      }`}>
-                        {r.patient.group_name}
-                      </span>
-                      <span className="text-slate-700 font-extrabold">{r.patient.surgeon || 'FK'}</span>
-                    </td>
-                    <td className="px-4 py-3.5 font-black text-purple-900 flex items-center gap-1.5 mt-1">
-                      {r.period === '1m' && <Microscope size={14} className="text-purple-600" />}
-                      {r.periodLabel}
-                    </td>
-                    <td className="px-4 py-3.5 text-slate-800">
-                      {r.daysPassed} gün ({Math.floor(r.daysPassed / 30)} ay)
-                    </td>
-                    <td className="px-4 py-3.5 text-right">
-                      {r.patient.phone ? (
-                        <button
-                          onClick={() => openWhatsAppBusiness(r.patient.phone, r.patient.patient_name, r.patient.surgeon)}
-                          className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-md shadow-emerald-600/30 inline-flex items-center gap-1.5 transition-all"
-                        >
-                          <MessageSquare size={14} /> WhatsApp Mesajı Gönder
-                        </button>
-                      ) : (
-                        <span className="text-slate-400 font-normal">Telefon yok</span>
-                      )}
-                    </td>
-                  </tr>
-                ))
+                filteredReminders.map((r, idx) => {
+                  const waLink = getWhatsAppLink(r.patient.phone, r.patient.patient_name, r.patient.surgeon);
+
+                  return (
+                    <tr key={idx} className="hover:bg-blue-50/60 transition-colors group border-b border-slate-100">
+                      <td className="px-4 py-3.5">
+                        <span className={`inline-flex items-center px-3 py-1 rounded-md text-[11px] font-black ${
+                          r.status === 'OVERDUE'
+                            ? 'bg-rose-100 text-rose-900 border border-rose-300'
+                            : r.status === 'DUE'
+                              ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                              : 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                        }`}>
+                          {r.status === 'OVERDUE' ? 'Günü Geçti / Eksik' : r.status === 'DUE' ? 'Kontrol Zamanı' : 'Tamamlandı'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3.5 font-black text-slate-900">
+                        {r.patient.patient_name}
+                        <span className="block text-[10px] text-slate-500 font-mono font-normal">Protokol: {r.patient.protocol || '-'}</span>
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold mr-2 ${
+                          r.patient.group_name === 'HOOD' ? 'bg-blue-100 text-blue-900' : 'bg-emerald-100 text-emerald-900'
+                        }`}>
+                          {r.patient.group_name}
+                        </span>
+                        <span className="text-slate-700 font-extrabold">{r.patient.surgeon || 'FK'}</span>
+                      </td>
+                      <td className="px-4 py-3.5 font-black text-purple-900 flex items-center gap-1.5 mt-1">
+                        {r.period === '1m' && <Microscope size={14} className="text-purple-600" />}
+                        {r.periodLabel}
+                      </td>
+                      <td className="px-4 py-3.5 text-slate-800">
+                        {r.daysPassed} gün ({Math.floor(r.daysPassed / 30)} ay)
+                      </td>
+                      <td className="px-4 py-3.5 text-right">
+                        {r.patient.phone && waLink ? (
+                          <a
+                            href={waLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-md shadow-emerald-600/30 inline-flex items-center gap-1.5 transition-all"
+                          >
+                            <MessageSquare size={14} /> WhatsApp Mesajı Gönder
+                          </a>
+                        ) : (
+                          <span className="text-slate-400 font-normal">Telefon yok</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
