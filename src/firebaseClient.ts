@@ -9,6 +9,81 @@ export const firebaseConfig = {
   appId: "1:733847900230:web:6c6aa1d906be8dffbb7a47"
 };
 
+export interface DiagnosticResult {
+  firestoreStatus: string;
+  rtdbStatus: string;
+  foundCollections: string[];
+  rawSamples: any[];
+  errorDetails?: string;
+}
+
+// Diagnostic inspector to reveal exact Firebase collection structure and security rule status
+export async function diagnoseFirebaseConnection(): Promise<DiagnosticResult> {
+  const result: DiagnosticResult = {
+    firestoreStatus: 'Bilinmiyor',
+    rtdbStatus: 'Bilinmiyor',
+    foundCollections: [],
+    rawSamples: []
+  };
+
+  const collectionsToTest = [
+    'cases', 'ameliyatlar', 'patients', 'operations', 'surgeries', 
+    'vaka_listesi', 'vakalar', 'urology_cases', 'vakalistesi', 'randevular', 
+    'list', 'events', 'appointments', 'records', 'data', 'users'
+  ];
+
+  // Test Firestore
+  for (const colName of collectionsToTest) {
+    try {
+      const url = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/${colName}?key=${firebaseConfig.apiKey}`;
+      const res = await fetch(url);
+      
+      if (res.status === 200) {
+        const data = await res.json();
+        result.firestoreStatus = 'Erişim Başarılı (HTTP 200)';
+        if (data.documents && data.documents.length > 0) {
+          result.foundCollections.push(`Firestore: ${colName} (${data.documents.length} doküman)`);
+          data.documents.slice(0, 3).forEach((d: any) => {
+            result.rawSamples.push({ source: `Firestore/${colName}`, id: d.name.split('/').pop(), fields: d.fields });
+          });
+        }
+      } else if (res.status === 403) {
+        result.firestoreStatus = 'Erişim Engellendi (HTTP 403 - Firebase Güvenlik Kuralları Okumayı Kilitliyor)';
+      }
+    } catch (err: any) {
+      result.errorDetails = err.message;
+    }
+  }
+
+  // Test Realtime Database
+  const rtdbUrls = [
+    `https://${firebaseConfig.projectId}.firebaseio.com/.json?key=${firebaseConfig.apiKey}`,
+    `https://${firebaseConfig.projectId}-default-rtdb.firebaseio.com/.json?key=${firebaseConfig.apiKey}`
+  ];
+
+  for (const rtdbUrl of rtdbUrls) {
+    try {
+      const res = await fetch(rtdbUrl);
+      if (res.status === 200) {
+        const data = await res.json();
+        result.rtdbStatus = 'Erişim Başarılı (HTTP 200)';
+        if (data && typeof data === 'object') {
+          Object.keys(data).forEach(k => {
+            result.foundCollections.push(`RealtimeDB: ${k}`);
+            result.rawSamples.push({ source: `RealtimeDB/${k}`, sampleData: data[k] });
+          });
+        }
+      } else if (res.status === 401 || res.status === 403) {
+        result.rtdbStatus = 'Erişim Engellendi (HTTP 401/403 - Database Güvenlik Kuralı İzni Gerektiriyor)';
+      }
+    } catch (err) {
+      // Continue
+    }
+  }
+
+  return result;
+}
+
 function getFieldValue(fieldObj: any): any {
   if (!fieldObj) return null;
   if (fieldObj.stringValue !== undefined) return fieldObj.stringValue;
@@ -81,7 +156,6 @@ function extractOpDate(d: any): string {
   for (const k of keys) {
     if (d[k]) {
       const valStr = String(d[k]).trim();
-      // Handle DD.MM.YYYY or DD/MM/YYYY
       if (valStr.includes('.')) {
         const parts = valStr.split('.');
         if (parts.length === 3 && parts[2].length === 4) {
@@ -124,35 +198,19 @@ function extractNotes(d: any): string | null {
   return null;
 }
 
-// Target keywords requested by user: 'robot rp', 'robotik rp', 'robotik radikal prostatektomi', 'rarp'
 function isRoboticProstatectomyCase(d: any): boolean {
   if (!d || typeof d !== 'object') return true;
-
   const searchText = JSON.stringify(d).toLowerCase();
-  
-  const keywords = [
-    'robot rp', 
-    'robotik rp', 
-    'robotik radikal prostatektomi', 
-    'prostatektomi', 
-    'prostatectomy', 
-    'rarp', 
-    'radikal prostatektomi',
-    'robot'
-  ];
-
+  const keywords = ['robot rp', 'robotik rp', 'robotik radikal prostatektomi', 'prostatektomi', 'prostatectomy', 'rarp', 'radikal prostatektomi', 'robot'];
   for (const kw of keywords) {
-    if (searchText.includes(kw)) {
-      return true;
-    }
+    if (searchText.includes(kw)) return true;
   }
-
-  // If no operation title field exists in the document, include it by default so nothing is missed
   return true;
 }
 
 export async function fetchFirebaseUpcomingCases(minOpDate?: string | null): Promise<UpcomingOperation[]> {
   const cases: UpcomingOperation[] = [];
+  const cutoffDate = minOpDate || null;
 
   const possibleCollections = [
     'cases', 'ameliyatlar', 'patients', 'operations', 'surgeries', 
@@ -181,8 +239,7 @@ export async function fetchFirebaseUpcomingCases(minOpDate?: string | null): Pro
             const patientName = extractPatientName(parsedObj);
             const opDate = extractOpDate(parsedObj);
 
-            // Optional cutoff date check
-            if (minOpDate && opDate < minOpDate) {
+            if (cutoffDate && opDate < cutoffDate) {
               return;
             }
 
@@ -203,11 +260,11 @@ export async function fetchFirebaseUpcomingCases(minOpDate?: string | null): Pro
         }
       }
     } catch (err) {
-      // Continue next collection
+      // Continue
     }
   }
 
-  // 2. Fetch from Realtime Database REST API if Firestore didn't yield results
+  // 2. Fetch from Realtime Database REST API
   if (cases.length === 0) {
     const rtdbUrls = [
       `https://${firebaseConfig.projectId}.firebaseio.com/.json?key=${firebaseConfig.apiKey}`,
@@ -225,16 +282,12 @@ export async function fetchFirebaseUpcomingCases(minOpDate?: string | null): Pro
               
               items.forEach((item, idx) => {
                 if (item && typeof item === 'object') {
-                  if (!isRoboticProstatectomyCase(item)) {
-                    return;
-                  }
+                  if (!isRoboticProstatectomyCase(item)) return;
 
                   const patientName = extractPatientName(item);
                   const opDate = extractOpDate(item);
 
-                  if (minOpDate && opDate < minOpDate) {
-                    return;
-                  }
+                  if (cutoffDate && opDate < cutoffDate) return;
 
                   cases.push({
                     id: `fb-rtdb-${pathName}-${idx}`,
