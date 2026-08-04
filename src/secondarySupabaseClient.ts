@@ -58,7 +58,7 @@ function extractPhone(d: any): string | null {
   return null;
 }
 
-// Convert any date format (DD.MM.YYYY, DD/MM/YYYY, YYYY-MM-DD, ISO string, etc.) to YYYY-MM-DD
+// Robust Turkish Date Parser: DD.MM.YYYY or DD/MM/YYYY -> YYYY-MM-DD
 function extractOpDate(d: any): string {
   if (!d || typeof d !== 'object') return new Date().toISOString().split('T')[0];
   
@@ -67,21 +67,25 @@ function extractOpDate(d: any): string {
     if (d[k]) {
       const valStr = String(d[k]).trim();
       
-      // If DD.MM.YYYY
+      // If DD.MM.YYYY or DD.MM.YY
       if (valStr.includes('.')) {
         const parts = valStr.split('.');
         if (parts.length === 3) {
+          const day = parts[0].padStart(2, '0');
+          const month = parts[1].padStart(2, '0');
           const year = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
-          return `${year}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+          return `${year}-${month}-${day}`;
         }
       }
       
-      // If DD/MM/YYYY
+      // If DD/MM/YYYY or DD/MM/YY
       if (valStr.includes('/')) {
         const parts = valStr.split('/');
         if (parts.length === 3) {
+          const day = parts[0].padStart(2, '0');
+          const month = parts[1].padStart(2, '0');
           const year = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
-          return `${year}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+          return `${year}-${month}-${day}`;
         }
       }
 
@@ -124,32 +128,11 @@ function extractNotes(d: any): string | null {
   return null;
 }
 
-function isRoboticProstatectomyCase(item: any): boolean {
+// Matches ANY case where the word 'robot' or 'rarp' exists anywhere in the record!
+function containsRobotKeyword(item: any): boolean {
   if (!item || typeof item !== 'object') return false;
-
-  const rawOp = item.operation || item.op_type || item.ameliyat || item.title || item.notes || '';
-  const opText = toTrLowerCase(String(rawOp));
   const fullText = toTrLowerCase(JSON.stringify(item));
-
-  const keywords = [
-    'robot rp',
-    'robotik rp',
-    'robotik radikal prostatektomi',
-    'prostatektomi',
-    'prostatectomy',
-    'rarp',
-    'radikal prostatektomi',
-    'robot'
-  ];
-
-  for (const kw of keywords) {
-    const kwLower = toTrLowerCase(kw);
-    if (opText.includes(kwLower) || fullText.includes(kwLower)) {
-      return true;
-    }
-  }
-
-  return false;
+  return fullText.includes('robot') || fullText.includes('rarp');
 }
 
 export async function fetchFromSecondarySupabase(minOpDate?: string | null): Promise<{ cases: UpcomingOperation[], rawError?: string, totalFound?: number, sampleItem?: any, debugInfo?: string }> {
@@ -157,7 +140,6 @@ export async function fetchFromSecondarySupabase(minOpDate?: string | null): Pro
   const cutoffDate = minOpDate || new Date().toISOString().split('T')[0];
 
   try {
-    // Range 0 to 10000 ensures Supabase default 1000 row limit is bypassed!
     const { data, error } = await secondarySupabase
       .from('surgeries')
       .select('*')
@@ -177,14 +159,14 @@ export async function fetchFromSecondarySupabase(minOpDate?: string | null): Pro
     let skippedNotRobotCount = 0;
 
     data.forEach((item, idx) => {
-      const isRobot = isRoboticProstatectomyCase(item);
-      const opDate = extractOpDate(item);
-
-      if (!isRobot) {
+      // 1. Matches ANY case containing the word 'robot' or 'rarp'
+      if (!containsRobotKeyword(item)) {
         skippedNotRobotCount++;
         return;
       }
 
+      // 2. Date check (opDate >= cutoffDate)
+      const opDate = extractOpDate(item);
       if (cutoffDate && opDate < cutoffDate) {
         skippedOldCount++;
         return;
@@ -210,7 +192,7 @@ export async function fetchFromSecondarySupabase(minOpDate?: string | null): Pro
       cases, 
       totalFound: data.length, 
       sampleItem: data[0],
-      debugInfo: `Veritabanında Toplam ${data.length} vaka tarandı. ${matchedCount} ameliyat çekildi (${skippedOldCount} geçmiş tarihli vaka, ${skippedNotRobotCount} farklı ameliyat elendi).`
+      debugInfo: `Okunan Toplam: ${data.length}, Çekilen Robotik: ${matchedCount} (Geçmiş: ${skippedOldCount}, Robotik Olmayan: ${skippedNotRobotCount}).`
     };
   } catch (err: any) {
     return { cases: [], rawError: err.message };
