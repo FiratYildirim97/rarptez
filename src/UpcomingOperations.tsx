@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { UpcomingOperation, Patient } from './types';
 import { supabase } from './supabaseClient';
 import { fetchFromSecondarySupabase } from './secondarySupabaseClient';
-import { Calendar, Plus, RefreshCw, CheckCircle2, Trash2, Clock, Upload, Database, FileSpreadsheet, Zap } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { Calendar, Plus, CheckCircle2, Trash2, Clock, Zap } from 'lucide-react';
 
 interface UpcomingOperationsProps {
   onConvertToThesis: (patientData: Partial<Patient>, upcomingId?: string) => void;
@@ -72,12 +71,12 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
     };
   }, []);
 
-  // Fetch from Secondary Supabase Project (nrmjqjmyyxzkcskdldph -> surgeries table)
+  // Fetch from Secondary Supabase Project (surgeries table)
   const loadSecondarySupabaseCases = async () => {
     setIsSyncing(true);
     setSyncStatusMsg(null);
     try {
-      const { cases: secCases, rawError, totalFound, sampleItem } = await fetchFromSecondarySupabase(todayStr);
+      const { cases: secCases, rawError } = await fetchFromSecondarySupabase(todayStr);
 
       if (secCases && secCases.length > 0) {
         let addedCount = 0;
@@ -96,18 +95,16 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
           if (!error) addedCount++;
         }
 
-        setSyncStatusMsg(`✅ Diğer Supabase projenizin 'surgeries' tablosundan ${addedCount} vaka Supabase veritabanınıza başarıyla aktarıldı.`);
+        setSyncStatusMsg(`✅ ${addedCount} yeni vaka başarıyla aktarıldı.`);
         loadSupabaseUpcomingCases();
       } else if (rawError) {
-        setSyncStatusMsg(`⚠️ Diğer Supabase 'surgeries' tablosuna bağlanırken hata: ${rawError}`);
-      } else if (totalFound !== undefined && totalFound > 0) {
-        setSyncStatusMsg(`ℹ️ surgeries tablosunda toplam ${totalFound} vaka okundu fakat tarih/kelime filtresine takıldı. Örnek vaka: ${JSON.stringify(sampleItem)}`);
+        setSyncStatusMsg(`⚠️ Bağlantı hatası: ${rawError}`);
       } else {
-        setSyncStatusMsg(`ℹ️ Diğer Supabase projenizdeki 'surgeries' tablosu boş döndü (0 vaka bulundu).`);
+        setSyncStatusMsg(`ℹ️ Ameliyat tarihi bugün (${todayStr}) veya sonrası olan uygun robotik vaka bulunamadı.`);
       }
     } catch (err: any) {
-      console.error("Secondary Supabase sync error:", err);
-      setSyncStatusMsg("⚠️ Diğer Supabase projesine bağlanırken bir uyarı oluştu: " + err.message);
+      console.error("Sync error:", err);
+      setSyncStatusMsg("⚠️ Bağlantı hatası: " + err.message);
     } finally {
       setIsSyncing(false);
     }
@@ -144,66 +141,6 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
     }
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setIsSyncing(true);
-    setSyncStatusMsg("Excel/CSV dosyası işleniyor...");
-
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-      try {
-        const bstr = evt.target?.result;
-        const wb = XLSX.read(bstr, { type: 'binary' });
-        const wsName = wb.SheetNames[0];
-        const ws = wb.Sheets[wsName];
-        const rows: any[] = XLSX.utils.sheet_to_json(ws);
-
-        if (rows.length === 0) {
-          setSyncStatusMsg("⚠️ Yüklenen dosyada veri bulunamadı.");
-          setIsSyncing(false);
-          return;
-        }
-
-        let importedCount = 0;
-        const toInsert: any[] = [];
-
-        rows.forEach(r => {
-          const name = r.Hasta || r.hasta || r.ad_soyad || r.patient_name || r.name || r['Hasta Adı'] || r['Ad Soyad'];
-          if (name) {
-            toInsert.push({
-              patient_name: String(name).trim(),
-              protocol: r.Protokol || r.protokol || r.protocol || r['Protokol No'] || '',
-              phone: r.Telefon || r.telefon || r.phone || r.tel || '',
-              op_date: r.Tarih || r.tarih || r.op_date || r.date || todayStr,
-              surgeon: r.Cerrah || r.cerrah || r.surgeon || 'FK',
-              notes: r.Notlar || r.notlar || r.notes || r.Ameliyat || r['Ameliyat Türü'] || '',
-              source: 'EXCEL_IMPORT',
-              status: 'SCHEDULED'
-            });
-          }
-        });
-
-        if (toInsert.length > 0) {
-          const { error } = await supabase.from('upcoming_operations').insert(toInsert);
-          if (!error) {
-            importedCount = toInsert.length;
-            setSyncStatusMsg(`✅ Excel'den ${importedCount} ameliyat kaydı Supabase'e yüklendi.`);
-            loadSupabaseUpcomingCases();
-          } else {
-            setSyncStatusMsg("⚠️ Yükleme hatası: " + error.message);
-          }
-        }
-      } catch (err: any) {
-        setSyncStatusMsg("⚠️ Dosya okuma hatası: " + err.message);
-      } finally {
-        setIsSyncing(false);
-      }
-    };
-    reader.readAsBinaryString(file);
-  };
-
   const handleDelete = async (id: string) => {
     if (confirm("Bu ameliyat kaydını silmek istediğinize emin misiniz?")) {
       const { error } = await supabase.from('upcoming_operations').delete().eq('id', id);
@@ -232,41 +169,31 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
       {/* Header Banner */}
       <div className="bg-gradient-to-r from-slate-900 to-blue-950 text-white p-6 rounded-2xl shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="bg-emerald-500 text-white text-[10px] font-black uppercase px-3 py-1 rounded-md tracking-wider flex items-center gap-1">
-              <Database size={12} /> Supabase Cloud Connected
-            </span>
-            <span className="text-[10px] text-slate-300 font-mono">surgeries @ nrmjqjmyyxzkcskdldph</span>
-          </div>
-          <h2 className="text-xl font-black mt-2 flex items-center gap-2">
-            <Calendar className="text-blue-400" size={24} /> Gelecek Operasyonlar Portalı
+          <h2 className="text-2xl font-black flex items-center gap-2.5">
+            <Calendar className="text-blue-400" size={26} /> Gelecek Operasyonlar
           </h2>
           <p className="text-xs text-slate-300 mt-1">
-            Diğer Supabase projenizin <strong>'surgeries'</strong> tablosundan vakaları canlı çekin.
+            Gelecek robotik prostatektomi ameliyatlarınızı bu alandan takip edebilir ve tamamlandığında teze aktarabilirsiniz.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        {/* EXACTLY 2 BUTTONS ONLY */}
+        <div className="flex items-center gap-3">
           <button
             onClick={loadSecondarySupabaseCases}
             disabled={isSyncing}
             className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-black rounded-xl shadow-lg shadow-amber-500/30 flex items-center gap-2 transition-all shrink-0 disabled:opacity-50"
-            title="surgeries tablosundan ameliyatları çek"
+            title="Ameliyat listesinden hastaları çek"
           >
             <Zap size={16} className={isSyncing ? "animate-spin text-yellow-200" : "text-yellow-300"} />
-            {isSyncing ? "surgeries Çekiliyor..." : "surgeries Tablosundan Çek"}
+            {isSyncing ? "Hastalar Çekiliyor..." : "Listeden hasta çek"}
           </button>
-
-          <label className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-pointer transition-all shrink-0">
-            <FileSpreadsheet size={15} /> Excel / CSV Yükle
-            <input type="file" accept=".xlsx, .xls, .csv" onChange={handleFileUpload} className="hidden" />
-          </label>
 
           <button
             onClick={() => setShowAddModal(true)}
             className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black rounded-xl shadow-lg shadow-blue-600/30 flex items-center gap-2 transition-all shrink-0"
           >
-            <Plus size={16} /> Ameliyat Ekle
+            <Plus size={16} /> Manuel Hasta ekle
           </button>
         </div>
       </div>
@@ -285,7 +212,7 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
           <div className="col-span-full bg-white p-12 rounded-2xl border border-slate-200 text-center space-y-3">
             <p className="text-slate-700 font-black text-base">Henüz Gelecek Ameliyat Kaydı Bulunmuyor</p>
             <p className="text-xs text-slate-500 max-w-md mx-auto">
-              Yukarıdaki <strong>"⚡ surgeries Tablosundan Çek"</strong> butonuna basarak diğer Supabase projenizin <i>'surgeries'</i> tablosundaki ameliyatları çekebilirsiniz.
+              Yukarıdaki <strong>"Listeden hasta çek"</strong> butonuna basarak ameliyat listesinden vakaları aktarabilir veya <strong>"Manuel Hasta ekle"</strong> butonunu kullanabilirsiniz.
             </p>
           </div>
         ) : (
@@ -298,12 +225,8 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
               <div key={op.id} className="bg-white rounded-2xl border-2 border-slate-200 p-6 shadow-xl space-y-4 flex flex-col justify-between hover:border-blue-500 transition-all">
                 <div>
                   <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-3">
-                    <span className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase ${
-                      op.source === 'SECONDARY_SUPABASE' ? 'bg-amber-100 text-amber-900 border border-amber-200' :
-                      op.source === 'EXCEL_IMPORT' ? 'bg-emerald-100 text-emerald-900 border border-emerald-200' :
-                      'bg-blue-100 text-blue-900 border border-blue-200'
-                    }`}>
-                      {op.source === 'SECONDARY_SUPABASE' ? '⚡ surgeries Tablosu' : op.source === 'EXCEL_IMPORT' ? '📊 Excel Kaydı' : '⚡ Supabase Bulut'}
+                    <span className="px-2.5 py-1 rounded-md text-[10px] font-black uppercase bg-blue-100 text-blue-900 border border-blue-200">
+                      🗓 Planlanan Vaka
                     </span>
                     <span className="text-xs font-mono font-extrabold text-slate-700">
                       Cerrah: {op.surgeon || 'FK'}
@@ -357,7 +280,7 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
       {showAddModal && (
         <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-md flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 border-2 border-slate-300">
-            <h3 className="text-lg font-black text-slate-900">Yeni Gelecek Operasyon Ekle</h3>
+            <h3 className="text-lg font-black text-slate-900">Manuel Hasta Ekle</h3>
             <form onSubmit={handleAddManual} className="space-y-3 text-xs font-bold">
               <div>
                 <label className="block text-slate-700 mb-1">Hasta Adı Soyadı *</label>
