@@ -6,7 +6,6 @@ export const SECONDARY_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9
 
 export const secondarySupabase = createClient(SECONDARY_SUPABASE_URL, SECONDARY_SUPABASE_ANON_KEY);
 
-// Bulletproof Turkish Lowercaser (converts uppercase İ/I/Ğ/Ü/Ş/Ö/Ç reliably)
 function toTrLowerCase(str: string): string {
   if (!str) return '';
   const s = String(str)
@@ -67,39 +66,44 @@ function extractPhone(d: any): string | null {
   return null;
 }
 
+// Strictly extract actual operation date from 'date' column first (NEVER use created_at!)
 function extractOpDate(d: any): string {
   if (!d || typeof d !== 'object') return new Date().toISOString().split('T')[0];
   
-  const keys = ['date', 'op_date', 'opDate', 'tarih', 'ameliyatTarihi', 'ameliyat_tarihi', 'created_at', 'createdAt', 'time', 'surgery_date'];
-  for (const k of keys) {
-    if (d[k]) {
-      const valStr = String(d[k]).trim();
-      
-      if (valStr.includes('.')) {
-        const parts = valStr.split('.');
-        if (parts.length === 3) {
-          const day = parts[0].padStart(2, '0');
-          const month = parts[1].padStart(2, '0');
-          const year = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
-          return `${year}-${month}-${day}`;
-        }
-      }
-      
-      if (valStr.includes('/')) {
-        const parts = valStr.split('/');
-        if (parts.length === 3) {
-          const day = parts[0].padStart(2, '0');
-          const month = parts[1].padStart(2, '0');
-          const year = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
-          return `${year}-${month}-${day}`;
-        }
-      }
+  // Prioritize actual operation date fields FIRST (excluding created_at / updated_at)
+  const dateVal = d.date || d.op_date || d.opDate || d.tarih || d.ameliyatTarihi || d.ameliyat_tarihi || d.surgery_date;
+  
+  if (dateVal) {
+    const valStr = String(dateVal).trim();
+    
+    // If YYYY-MM-DD
+    if (valStr.length >= 10 && valStr.includes('-')) {
+      return valStr.substring(0, 10);
+    }
 
-      if (valStr.length >= 10 && valStr.includes('-')) {
-        return valStr.substring(0, 10);
+    // If DD.MM.YYYY or DD.MM.YY
+    if (valStr.includes('.')) {
+      const parts = valStr.split('.');
+      if (parts.length === 3) {
+        const day = parts[0].padStart(2, '0');
+        const month = parts[1].padStart(2, '0');
+        const year = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
+        return `${year}-${month}-${day}`;
+      }
+    }
+    
+    // If DD/MM/YYYY or DD/MM/YY
+    if (valStr.includes('/')) {
+      const parts = valStr.split('/');
+      if (parts.length === 3) {
+        const day = parts[0].padStart(2, '0');
+        const month = parts[1].padStart(2, '0');
+        const year = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
+        return `${year}-${month}-${day}`;
       }
     }
   }
+
   return new Date().toISOString().split('T')[0];
 }
 
@@ -147,9 +151,8 @@ function containsRobotKeyword(item: any): boolean {
 export async function fetchFromSecondarySupabase(minOpDate?: string | null): Promise<{ cases: UpcomingOperation[], rawError?: string, totalFound?: number, sampleItem?: any, debugInfo?: string }> {
   const cases: UpcomingOperation[] = [];
   
-  const yesterdayObj = new Date();
-  yesterdayObj.setDate(yesterdayObj.getDate() - 1);
-  const cutoffDate = minOpDate ? minOpDate : yesterdayObj.toISOString().split('T')[0];
+  // Cutoff date is today (e.g. 2026-08-05)
+  const cutoffDate = minOpDate || new Date().toISOString().split('T')[0];
 
   try {
     const { data, error } = await secondarySupabase
