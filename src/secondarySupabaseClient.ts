@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { UpcomingOperation } from './types';
 
 export const SECONDARY_SUPABASE_URL = 'https://nrmjqjmyyzkzcskdldph.supabase.co';
-export const SECONDARY_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ybWpxam15eXpremNza2RsZHBoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU4NzUzMzMsImV4cCI6MjEwMTQ1MTMzM30.LaaPffBhRt5TwRn-Adzf8R5YtAbhI8Wf5ykYsdm0byk';
+export const SECONDARY_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ybWpxam15eXpremNza2RsZHBoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU4NzUzMzMsImV4cCI6MjEwMTQ1MTMzM30.LaaPffBhRt5TwRn-Adzf8R5YtAdhI8Wf5ykYsdm0byk';
 
 export const secondarySupabase = createClient(SECONDARY_SUPABASE_URL, SECONDARY_SUPABASE_ANON_KEY);
 
@@ -66,22 +66,19 @@ function extractPhone(d: any): string | null {
   return null;
 }
 
-// Strictly extract actual operation date from 'date' column first (NEVER use created_at!)
+// Strictly extract actual operation date from 'date' column first
 function extractOpDate(d: any): string {
   if (!d || typeof d !== 'object') return new Date().toISOString().split('T')[0];
   
-  // Prioritize actual operation date fields FIRST (excluding created_at / updated_at)
   const dateVal = d.date || d.op_date || d.opDate || d.tarih || d.ameliyatTarihi || d.ameliyat_tarihi || d.surgery_date;
   
   if (dateVal) {
     const valStr = String(dateVal).trim();
     
-    // If YYYY-MM-DD
     if (valStr.length >= 10 && valStr.includes('-')) {
       return valStr.substring(0, 10);
     }
 
-    // If DD.MM.YYYY or DD.MM.YY
     if (valStr.includes('.')) {
       const parts = valStr.split('.');
       if (parts.length === 3) {
@@ -92,7 +89,6 @@ function extractOpDate(d: any): string {
       }
     }
     
-    // If DD/MM/YYYY or DD/MM/YY
     if (valStr.includes('/')) {
       const parts = valStr.split('/');
       if (parts.length === 3) {
@@ -150,22 +146,43 @@ function containsRobotKeyword(item: any): boolean {
 
 export async function fetchFromSecondarySupabase(minOpDate?: string | null): Promise<{ cases: UpcomingOperation[], rawError?: string, totalFound?: number, sampleItem?: any, debugInfo?: string }> {
   const cases: UpcomingOperation[] = [];
-  
-  // Cutoff date is today (e.g. 2026-08-05)
   const cutoffDate = minOpDate || new Date().toISOString().split('T')[0];
 
-  try {
-    const { data, error } = await secondarySupabase
-      .from('surgeries')
-      .select('*')
-      .range(0, 10000);
+  let allData: any[] = [];
+  let page = 0;
+  const pageSize = 1000;
+  let hasMore = true;
+  let rawError: string | undefined;
 
-    if (error) {
-      console.error("Secondary Supabase surgeries fetch error:", error);
-      return { cases: [], rawError: error.message };
+  try {
+    // Multi-page loop fetches all pages of 1,000 rows until the ENTIRE table is retrieved!
+    while (hasMore && page < 20) {
+      const { data, error } = await secondarySupabase
+        .from('surgeries')
+        .select('*')
+        .order('date', { ascending: false })
+        .range(page * pageSize, (page + 1) * pageSize - 1);
+
+      if (error) {
+        console.error("Secondary Supabase page fetch error:", error);
+        rawError = error.message;
+        hasMore = false;
+      } else if (data && data.length > 0) {
+        allData = allData.concat(data);
+        if (data.length < pageSize) {
+          hasMore = false;
+        }
+      } else {
+        hasMore = false;
+      }
+      page++;
     }
 
-    if (!data || !Array.isArray(data) || data.length === 0) {
+    if (rawError && allData.length === 0) {
+      return { cases: [], rawError };
+    }
+
+    if (allData.length === 0) {
       return { cases: [], totalFound: 0, debugInfo: "surgeries tablosu tamamen boş döndü." };
     }
 
@@ -173,7 +190,7 @@ export async function fetchFromSecondarySupabase(minOpDate?: string | null): Pro
     let skippedOldCount = 0;
     let skippedNotRobotCount = 0;
 
-    data.forEach((item, idx) => {
+    allData.forEach((item, idx) => {
       // 1. STRICT: Only cases containing 'robot'
       if (!containsRobotKeyword(item)) {
         skippedNotRobotCount++;
@@ -205,9 +222,9 @@ export async function fetchFromSecondarySupabase(minOpDate?: string | null): Pro
 
     return { 
       cases, 
-      totalFound: data.length, 
-      sampleItem: data[0],
-      debugInfo: `Veritabanında Okunan: ${data.length}, Çekilen Robotik Vaka: ${matchedCount} (${skippedOldCount} geçmiş tarihli, ${skippedNotRobotCount} robotik olmayan elendi).`
+      totalFound: allData.length, 
+      sampleItem: allData[0],
+      debugInfo: `Tüm Tablo Tarandı (${allData.length} vaka). Gelecek Robotik Ameliyat Sayısı: ${matchedCount} (${skippedOldCount} geçmiş vaka, ${skippedNotRobotCount} robotik olmayan elendi).`
     };
   } catch (err: any) {
     return { cases: [], rawError: err.message };
