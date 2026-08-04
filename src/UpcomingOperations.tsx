@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { UpcomingOperation, Patient } from './types';
 import { supabase } from './supabaseClient';
-import { fetchFirebaseUpcomingCases } from './firebaseClient';
-import { Calendar, Plus, RefreshCw, CheckCircle2, Trash2, Clock, Upload, Database, FileSpreadsheet } from 'lucide-react';
+import { fetchFromSecondarySupabase } from './secondarySupabaseClient';
+import { Calendar, Plus, RefreshCw, CheckCircle2, Trash2, Clock, Upload, Database, FileSpreadsheet, Zap } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 interface UpcomingOperationsProps {
@@ -26,7 +26,7 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
 
   const todayStr = new Date().toISOString().split('T')[0];
 
-  // 1. Fetch upcoming operations directly from Supabase
+  // 1. Fetch upcoming operations directly from main Supabase thesis database
   const loadSupabaseUpcomingCases = async () => {
     setIsSyncing(true);
     try {
@@ -74,38 +74,38 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
     };
   }, []);
 
-  // 2. Fetch from Firebase and save to Supabase
-  const loadFirebaseCases = async () => {
+  // 2. Fetch from Secondary Supabase Project (nrmjqjmyyxzkcskdldph) into Main Supabase
+  const loadSecondarySupabaseCases = async () => {
     setIsSyncing(true);
     setSyncStatusMsg(null);
     try {
-      const fbCases = await fetchFirebaseUpcomingCases(todayStr);
+      const secCases = await fetchFromSecondarySupabase(todayStr);
 
-      if (fbCases.length > 0) {
+      if (secCases.length > 0) {
         let addedCount = 0;
 
-        for (const fbCase of fbCases) {
+        for (const secCase of secCases) {
           const { error } = await supabase.from('upcoming_operations').insert([{
-            patient_name: fbCase.patient_name,
-            protocol: fbCase.protocol,
-            phone: fbCase.phone,
-            op_date: fbCase.op_date,
-            surgeon: fbCase.surgeon || 'FK',
-            notes: fbCase.notes,
-            source: 'FIREBASE',
+            patient_name: secCase.patient_name,
+            protocol: secCase.protocol,
+            phone: secCase.phone,
+            op_date: secCase.op_date,
+            surgeon: secCase.surgeon || 'FK',
+            notes: secCase.notes,
+            source: 'SECONDARY_SUPABASE',
             status: 'SCHEDULED'
           }]);
           if (!error) addedCount++;
         }
 
-        setSyncStatusMsg(`✅ Firebase'den ${addedCount} yeni vaka Supabase veritabanınıza başarıyla aktarıldı.`);
+        setSyncStatusMsg(`✅ Diğer Supabase projenizden ${addedCount} yeni vaka ana Supabase veritabanınıza başarıyla aktarıldı.`);
         loadSupabaseUpcomingCases();
       } else {
-        setSyncStatusMsg(`ℹ️ Ameliyat tarihi bugün (${todayStr}) veya sonrası olan yeni bir vaka bulunamadı.`);
+        setSyncStatusMsg(`ℹ️ Diğer Supabase projenizde ameliyat tarihi bugün (${todayStr}) veya sonrası olan yeni bir robotik vaka bulunamadı.`);
       }
-    } catch (err) {
-      console.error("Firebase sync error:", err);
-      setSyncStatusMsg("⚠️ Firebase bağlantısı kurulurken bir uyarı oluştu.");
+    } catch (err: any) {
+      console.error("Secondary Supabase sync error:", err);
+      setSyncStatusMsg("⚠️ Diğer Supabase projesine bağlanırken bir uyarı oluştu: " + err.message);
     } finally {
       setIsSyncing(false);
     }
@@ -116,7 +116,7 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
     e.preventDefault();
     if (!newOp.patient_name || !newOp.op_date) return;
 
-    const { data, error } = await supabase.from('upcoming_operations').insert([{
+    const { error } = await supabase.from('upcoming_operations').insert([{
       patient_name: newOp.patient_name,
       protocol: newOp.protocol || '',
       phone: newOp.phone || '',
@@ -125,7 +125,7 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
       notes: newOp.notes || '',
       source: 'SUPABASE',
       status: 'SCHEDULED'
-    }]).select();
+    }]);
 
     if (error) {
       alert("Hata oluştu: " + error.message);
@@ -224,11 +224,8 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
       op_date: op.op_date,
     };
 
-    // Remove from upcoming_operations in Supabase
     await supabase.from('upcoming_operations').delete().eq('id', op.id);
     setUpcomingOps(prev => prev.filter(o => o.id !== op.id));
-
-    // Open conversion modal to assign HOOD / STANDART technique
     onConvertToThesis(patientData, op.id);
   };
 
@@ -239,33 +236,33 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
         <div>
           <div className="flex items-center gap-2">
             <span className="bg-emerald-500 text-white text-[10px] font-black uppercase px-3 py-1 rounded-md tracking-wider flex items-center gap-1">
-              <Database size={12} /> Supabase Live Cloud Connected
+              <Database size={12} /> Supabase Cloud Connected
             </span>
-            <span className="text-[10px] text-slate-300 font-mono">jiaqclevxzlqcsuyyuzr</span>
+            <span className="text-[10px] text-slate-300 font-mono">nrmjqjmyyxzkcskdldph</span>
           </div>
           <h2 className="text-xl font-black mt-2 flex items-center gap-2">
             <Calendar className="text-blue-400" size={24} /> Gelecek Operasyonlar Portalı
           </h2>
           <p className="text-xs text-slate-300 mt-1">
-            Gelecek ameliyat kayıtlarınız <strong>Supabase bulutunda</strong> sınırsız ve kesintisiz saklanır.
+            Diğer Supabase projenizden (<strong>nrmjqjmyyxzkcskdldph</strong>) vakaları canlı çekin veya Excel ile yükleyin.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <label className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-lg shadow-emerald-600/30 flex items-center gap-2 cursor-pointer transition-all shrink-0">
-            <FileSpreadsheet size={16} /> Excel / CSV Yükle
+          <button
+            onClick={loadSecondarySupabaseCases}
+            disabled={isSyncing}
+            className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-black rounded-xl shadow-lg shadow-amber-500/30 flex items-center gap-2 transition-all shrink-0 disabled:opacity-50"
+            title="Diğer Supabase projenizden canlı ameliyatları çek"
+          >
+            <Zap size={16} className={isSyncing ? "animate-spin text-yellow-200" : "text-yellow-300"} />
+            {isSyncing ? "Supabase'den Çekiliyor..." : "Diğer Supabase'den Çek"}
+          </button>
+
+          <label className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-pointer transition-all shrink-0">
+            <FileSpreadsheet size={15} /> Excel / CSV Yükle
             <input type="file" accept=".xlsx, .xls, .csv" onChange={handleFileUpload} className="hidden" />
           </label>
-
-          <button
-            onClick={loadFirebaseCases}
-            disabled={isSyncing}
-            className="px-3.5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl shadow-lg shadow-amber-500/20 flex items-center gap-1.5 transition-all shrink-0 disabled:opacity-50"
-            title="Firebase'den Supabase veritabanınıza çeker"
-          >
-            <RefreshCw size={15} className={isSyncing ? "animate-spin" : ""} />
-            {isSyncing ? "Çekiliyor..." : "Firebase'den Çek"}
-          </button>
 
           <button
             onClick={() => setShowAddModal(true)}
@@ -287,10 +284,10 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
       {/* Operations Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {upcomingOps.length === 0 ? (
-          <div className="col-span-full bg-white p-12 rounded-2xl border border-slate-200 text-center space-y-4">
+          <div className="col-span-full bg-white p-12 rounded-2xl border border-slate-200 text-center space-y-3">
             <p className="text-slate-700 font-black text-base">Henüz Gelecek Ameliyat Kaydı Bulunmuyor</p>
             <p className="text-xs text-slate-500 max-w-md mx-auto">
-              Yukarıdaki <strong>"📥 Excel / CSV Yükle"</strong> butonuna basarak bilgisayarınızdaki ameliyat listesini yükleyebilir veya <strong>"+ Ameliyat Ekle"</strong> butonundan ekleyebilirsiniz.
+              Yukarıdaki <strong>"⚡ Diğer Supabase'den Çek"</strong> butonuna basarak diğer Supabase projenizdeki vakaları çekebilir veya <strong>"📥 Excel / CSV Yükle"</strong> butonundan listenizi ekleyebilirsiniz.
             </p>
           </div>
         ) : (
@@ -304,11 +301,11 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
                 <div>
                   <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-3">
                     <span className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase ${
-                      op.source === 'FIREBASE' ? 'bg-orange-100 text-orange-900 border border-orange-200' :
+                      op.source === 'SECONDARY_SUPABASE' ? 'bg-amber-100 text-amber-900 border border-amber-200' :
                       op.source === 'EXCEL_IMPORT' ? 'bg-emerald-100 text-emerald-900 border border-emerald-200' :
                       'bg-blue-100 text-blue-900 border border-blue-200'
                     }`}>
-                      {op.source === 'FIREBASE' ? '🔥 Firebase' : op.source === 'EXCEL_IMPORT' ? '📊 Excel Kaydı' : '⚡ Supabase Bulut'}
+                      {op.source === 'SECONDARY_SUPABASE' ? '⚡ Canlı Supabase' : op.source === 'EXCEL_IMPORT' ? '📊 Excel Kaydı' : '⚡ Supabase Bulut'}
                     </span>
                     <span className="text-xs font-mono font-extrabold text-slate-700">
                       Cerrah: {op.surgeon || 'FK'}
@@ -362,7 +359,7 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
       {showAddModal && (
         <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-md flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 border-2 border-slate-300">
-            <h3 className="text-lg font-black text-slate-900">Yeni Gelecek Operasyon Ekle (Supabase)</h3>
+            <h3 className="text-lg font-black text-slate-900">Yeni Gelecek Operasyon Ekle</h3>
             <form onSubmit={handleAddManual} className="space-y-3 text-xs font-bold">
               <div>
                 <label className="block text-slate-700 mb-1">Hasta Adı Soyadı *</label>
