@@ -95,12 +95,12 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
           if (!error) addedCount++;
         }
 
-        setSyncStatusMsg(`✅ ${addedCount} yeni vaka başarıyla aktarıldı.`);
+        setSyncStatusMsg(`✅ ${addedCount} yeni vaka başarıyla aktarıldı. (${debugInfo || ''})`);
         loadSupabaseUpcomingCases();
       } else if (rawError) {
         setSyncStatusMsg(`⚠️ Bağlantı hatası: ${rawError}`);
       } else {
-        setSyncStatusMsg(`ℹ️ ${debugInfo || 'Ameliyat tarihi bugün veya sonrası olan vaka bulunamadı.'}`);
+        setSyncStatusMsg(`ℹ️ ${debugInfo || 'Vaka bulunamadı.'}`);
       }
     } catch (err: any) {
       console.error("Sync error:", err);
