@@ -9,7 +9,6 @@ export const firebaseConfig = {
   appId: "1:733847900230:web:6c6aa1d906be8dffbb7a47"
 };
 
-// Helper function to extract text values from Firestore REST API field objects
 function getFieldValue(fieldObj: any): any {
   if (!fieldObj) return null;
   if (fieldObj.stringValue !== undefined) return fieldObj.stringValue;
@@ -29,7 +28,6 @@ function getFieldValue(fieldObj: any): any {
   return null;
 }
 
-// Deep search object for patient name with all Turkish and English naming variations
 function extractPatientName(d: any): string | null {
   if (!d || typeof d !== 'object') return null;
 
@@ -45,7 +43,6 @@ function extractPatientName(d: any): string | null {
     }
   }
 
-  // Check composite ad + soyad
   if (d.ad || d.first_name || d.firstName) {
     const first = d.ad || d.first_name || d.firstName || '';
     const last = d.soyad || d.last_name || d.lastName || '';
@@ -114,8 +111,10 @@ function extractNotes(d: any): string | null {
   return null;
 }
 
-export async function fetchFirebaseUpcomingCases(filterSinceDate?: string | null): Promise<UpcomingOperation[]> {
+// Fetch cases where op_date >= minOpDate (e.g. today or later)
+export async function fetchFirebaseUpcomingCases(minOpDate?: string | null): Promise<UpcomingOperation[]> {
   const cases: UpcomingOperation[] = [];
+  const cutoffDate = minOpDate || new Date().toISOString().split('T')[0];
 
   const possibleCollections = [
     'cases', 'ameliyatlar', 'patients', 'operations', 'surgeries', 
@@ -140,8 +139,8 @@ export async function fetchFirebaseUpcomingCases(filterSinceDate?: string | null
             const patientName = extractPatientName(parsedObj);
             const opDate = extractOpDate(parsedObj);
 
-            // Filter since last sync date if provided
-            if (filterSinceDate && opDate < filterSinceDate) {
+            // Filter ONLY cases where ameliyat tarihi >= cutoffDate (Bugün veya daha sonraki tarihtekiler)
+            if (cutoffDate && opDate < cutoffDate) {
               return;
             }
 
@@ -187,7 +186,7 @@ export async function fetchFirebaseUpcomingCases(filterSinceDate?: string | null
                   const patientName = extractPatientName(item);
                   const opDate = extractOpDate(item);
 
-                  if (filterSinceDate && opDate < filterSinceDate) {
+                  if (cutoffDate && opDate < cutoffDate) {
                     return;
                   }
 

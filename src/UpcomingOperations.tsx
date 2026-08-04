@@ -10,9 +10,6 @@ interface UpcomingOperationsProps {
 export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperationsProps) {
   const [upcomingOps, setUpcomingOps] = useState<UpcomingOperation[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [lastSyncDate, setLastSyncDate] = useState<string | null>(() => {
-    return localStorage.getItem('last_firebase_sync_date') || null;
-  });
   const [syncStatusMsg, setSyncStatusMsg] = useState<string | null>(null);
 
   const [showAddModal, setShowAddModal] = useState(false);
@@ -25,38 +22,31 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
     notes: ''
   });
 
-  const loadFirebaseCases = async (onlyIncremental: boolean = false) => {
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  const loadFirebaseCases = async () => {
     setIsSyncing(true);
     setSyncStatusMsg(null);
     try {
-      const filterDate = onlyIncremental ? lastSyncDate : null;
-      const fbCases = await fetchFirebaseUpcomingCases(filterDate);
+      // Fetch cases where ameliyat günü >= bugün (05.08.2026 ve sonrası!)
+      const fbCases = await fetchFirebaseUpcomingCases(todayStr);
 
       if (fbCases.length > 0) {
         let addedCount = 0;
         setUpcomingOps(prev => {
-          const existingProtocols = new Set(prev.map(p => (p.protocol || p.patient_name).toLowerCase().trim()));
-          const newUniqueCases = fbCases.filter(c => {
+          const existingKeys = new Set(prev.map(p => (p.protocol || p.patient_name).toLowerCase().trim()));
+          const newCases = fbCases.filter(c => {
             const key = (c.protocol || c.patient_name).toLowerCase().trim();
-            return !existingProtocols.has(key);
+            return !existingKeys.has(key);
           });
-
-          addedCount = newUniqueCases.length;
-          return [...newUniqueCases, ...prev];
+          addedCount = newCases.length;
+          return [...newCases, ...prev];
         });
 
-        if (onlyIncremental) {
-          setSyncStatusMsg(`✅ Son senkronizasyondan sonra eklenen ${addedCount} yeni hasta listeye eklendi.`);
-        } else {
-          setSyncStatusMsg(`✅ Toplam ${fbCases.length} operasyon kaydı Firebase'den çekildi.`);
-        }
+        setSyncStatusMsg(`✅ Ameliyat tarihi bugün (${todayStr}) ve sonrası olan ${addedCount} vaka Firebase'den çekildi.`);
       } else {
-        setSyncStatusMsg("ℹ️ Son senkronizasyon tarihinden sonra yeni eklenmiş ameliyat bulunamadı.");
+        setSyncStatusMsg(`ℹ️ Ameliyat tarihi bugün (${todayStr}) veya sonrası olan yeni bir robotik vaka bulunamadı.`);
       }
-
-      const todayStr = new Date().toISOString().split('T')[0];
-      setLastSyncDate(todayStr);
-      localStorage.setItem('last_firebase_sync_date', todayStr);
     } catch (err) {
       console.error("Firebase sync error:", err);
       setSyncStatusMsg("⚠️ Firebase bağlantısı kurulurken bir uyarı oluştu.");
@@ -66,7 +56,7 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
   };
 
   useEffect(() => {
-    loadFirebaseCases(false);
+    loadFirebaseCases();
   }, []);
 
   const handleAddManual = (e: React.FormEvent) => {
@@ -131,19 +121,19 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
             <Calendar className="text-blue-400" size={24} /> Gelecek Operasyonlar Portalı
           </h2>
           <p className="text-xs text-slate-300 mt-1">
-            Son senkronizasyon tarihi: <strong className="text-amber-300 font-extrabold">{lastSyncDate || 'Henüz çekilmedi'}</strong>. Tıkladığınızda sadece sonrasında eklenen yeni hastalar çekilir.
+            Ameliyat tarihi bugün (<strong className="text-amber-300 font-extrabold">{todayStr}</strong>) ve daha sonra olan vakalar Firebase'den canlı çekilir.
           </p>
         </div>
 
         <div className="flex flex-col sm:flex-row items-center gap-3">
           <button
-            onClick={() => loadFirebaseCases(true)}
+            onClick={loadFirebaseCases}
             disabled={isSyncing}
             className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-black rounded-xl shadow-lg shadow-amber-500/30 flex items-center gap-2 transition-all shrink-0 disabled:opacity-50"
-            title="Sadece son senkronizasyondan sonra eklenen yeni ameliyatları çek"
+            title="Ameliyat tarihi bugün veya sonrası olan hastaları çek"
           >
             <RefreshCw size={16} className={isSyncing ? "animate-spin" : ""} />
-            {isSyncing ? "Yeni Hastalar Çekiliyor..." : "Yeni Eklenen Hastaları Çek"}
+            {isSyncing ? "Gelecek Ameliyatlar Çekiliyor..." : "Gelecek Ameliyatları Çek (Bugün ve Sonrası)"}
           </button>
           <button
             onClick={() => setShowAddModal(true)}
@@ -166,16 +156,16 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {upcomingOps.length === 0 ? (
           <div className="col-span-full bg-white p-12 rounded-2xl border border-slate-200 text-center space-y-3">
-            <p className="text-slate-700 font-black text-base">Henüz Gelecek Ameliyat Kaydı Bulunmuyor</p>
+            <p className="text-slate-700 font-black text-base">Ameliyat Tarihi Bugün veya Sonrası Olan Kayıt Bulunmuyor</p>
             <p className="text-xs text-slate-500 max-w-md mx-auto">
-              Yukarıdaki <strong>"Yeni Eklenen Hastaları Çek"</strong> butonuna basarak Firebase projenize <u>sonradan eklenmiş eksik hastaları</u> listenize çekebilir veya manuel ameliyat ekleyebilirsiniz.
+              Yukarıdaki <strong>"Gelecek Ameliyatları Çek (Bugün ve Sonrası)"</strong> butonuna basarak Firebase projenizden ameliyat günü bugün ({todayStr}) veya daha sonraki tarihlerde olan hastaları çekebilirsiniz.
             </p>
           </div>
         ) : (
           upcomingOps.map(op => {
             const opDateObj = new Date(op.op_date);
-            const today = new Date();
-            const diffDays = Math.ceil((opDateObj.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+            const todayObj = new Date();
+            const diffDays = Math.ceil((opDateObj.getTime() - todayObj.getTime()) / (1000 * 60 * 60 * 24));
 
             return (
               <div key={op.id} className="bg-white rounded-2xl border-2 border-slate-200 p-6 shadow-xl space-y-4 flex flex-col justify-between hover:border-blue-500 transition-all">
@@ -199,10 +189,10 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
                   <div className="mt-3 p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs font-bold space-y-1">
                     <div className="flex items-center gap-1.5 text-blue-900">
                       <Clock size={14} />
-                      <span>Planlanan Tarih: <strong>{op.op_date}</strong></span>
+                      <span>Planlanan Ameliyat Tarihi: <strong>{op.op_date}</strong></span>
                     </div>
                     <p className="text-[11px] text-slate-500 font-medium">
-                      {diffDays > 0 ? `🗓 Ameliyata ${diffDays} gün var` : diffDays === 0 ? '🔥 BUGÜN AMELİYAT GÜNÜ' : '⏳ Ameliyat Günü Geldi / Geçti'}
+                      {diffDays > 0 ? `🗓 Ameliyata ${diffDays} gün var` : diffDays === 0 ? '🔥 BUGÜN AMELİYAT GÜNÜ' : '⏳ Ameliyat Günü Geldi'}
                     </p>
                     {op.notes && (
                       <p className="text-slate-700 border-t border-slate-200 pt-1.5 mt-1 text-[11px]">
