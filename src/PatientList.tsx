@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Patient } from './types';
 import { getWhatsAppLink } from './utils';
-import { Search, Edit, Trash2, UserPlus, Eye, X, MessageSquare } from 'lucide-react';
+import PatientReport from './PatientReport';
+import { Search, Edit, Trash2, UserPlus, Eye, X, MessageSquare, FileText } from 'lucide-react';
 
 interface PatientListProps {
   patients: Patient[];
@@ -14,6 +15,7 @@ export default function PatientList({ patients, onEdit, onDelete, onAddNew }: Pa
   const [searchTerm, setSearchTerm] = useState('');
   const [groupFilter, setGroupFilter] = useState<'ALL' | 'HOOD' | 'STANDART'>('ALL');
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+  const [reportPatient, setReportPatient] = useState<Patient | null>(null);
 
   const filteredPatients = patients.filter(p => {
     const matchesGroup = groupFilter === 'ALL' || p.group_name === groupFilter;
@@ -170,7 +172,14 @@ export default function PatientList({ patients, onEdit, onDelete, onAddNew }: Pa
                         {p.console_time ? `${p.console_time} dk` : '-'}
                       </td>
                       <td className="px-4 py-3.5 text-right">
-                        <div className="flex items-center justify-end gap-2">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => setReportPatient(p)}
+                            className="p-2 text-blue-700 hover:text-white hover:bg-blue-600 rounded-lg transition-colors bg-blue-50 border border-blue-200"
+                            title="📄 PDF Raporu Oluştur & Yazdır"
+                          >
+                            <FileText size={16} />
+                          </button>
                           <button
                             onClick={() => setSelectedPatient(p)}
                             className="p-2 text-slate-700 hover:text-blue-700 hover:bg-blue-100 rounded-lg transition-colors bg-slate-100 border border-slate-300"
@@ -207,7 +216,7 @@ export default function PatientList({ patients, onEdit, onDelete, onAddNew }: Pa
         </div>
       </div>
 
-      {/* Patient Detail Modal (Açılır Pencere) */}
+      {/* Patient Detail Modal */}
       {selectedPatient && (
         <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-md flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 border-2 border-slate-300 text-slate-900 max-h-[90vh] overflow-y-auto">
@@ -221,12 +230,24 @@ export default function PatientList({ patients, onEdit, onDelete, onAddNew }: Pa
                 <h3 className="text-xl font-black text-slate-900">{selectedPatient.patient_name}</h3>
                 <p className="text-xs font-bold text-slate-700">Protokol: {selectedPatient.protocol || '-'} | Cerrah: {selectedPatient.surgeon || 'FK'}</p>
               </div>
-              <button
-                onClick={() => setSelectedPatient(null)}
-                className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-900 rounded-xl border border-slate-300 font-bold"
-              >
-                <X size={20} />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    const p = selectedPatient;
+                    setSelectedPatient(null);
+                    setReportPatient(p);
+                  }}
+                  className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black inline-flex items-center gap-1.5 shadow-md"
+                >
+                  <FileText size={16} /> PDF Raporu Al
+                </button>
+                <button
+                  onClick={() => setSelectedPatient(null)}
+                  className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-900 rounded-xl border border-slate-300 font-bold"
+                >
+                  <X size={20} />
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4 text-xs font-bold text-slate-900">
@@ -312,6 +333,14 @@ export default function PatientList({ patients, onEdit, onDelete, onAddNew }: Pa
             </div>
           </div>
         </div>
+      )}
+
+      {/* Printable PDF Report Modal */}
+      {reportPatient && (
+        <PatientReport 
+          patient={reportPatient} 
+          onClose={() => setReportPatient(null)} 
+        />
       )}
     </div>
   );
