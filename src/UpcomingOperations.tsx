@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { UpcomingOperation, Patient } from './types';
 import { fetchFirebaseUpcomingCases } from './firebaseClient';
-import { Calendar, Plus, RefreshCw, CheckCircle2, Trash2, Smartphone, Clock, Flame, ShieldAlert, Check, Filter, Layers } from 'lucide-react';
+import { Calendar, Plus, RefreshCw, CheckCircle2, Trash2, Smartphone, Clock, Flame, ShieldAlert, Check } from 'lucide-react';
 
 interface UpcomingOperationsProps {
   onConvertToThesis: (patientData: Partial<Patient>, upcomingId?: string) => void;
@@ -24,12 +24,11 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
 
   const todayStr = new Date().toISOString().split('T')[0];
 
-  const loadFirebaseCases = async (filterByToday: boolean = true) => {
+  const loadFirebaseCases = async () => {
     setIsSyncing(true);
     setSyncStatusMsg(null);
     try {
-      const minDate = filterByToday ? todayStr : null;
-      const fbCases = await fetchFirebaseUpcomingCases(minDate);
+      const fbCases = await fetchFirebaseUpcomingCases(todayStr);
 
       if (fbCases.length > 0) {
         let addedCount = 0;
@@ -43,9 +42,9 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
           return [...newCases, ...prev];
         });
 
-        setSyncStatusMsg(`✅ ('robot rp', 'robotik rp', 'robotik radikal prostatektomi') içeren ${addedCount} vaka Firebase'den çekildi.`);
+        setSyncStatusMsg(`✅ ('robot rp', 'robotik rp', 'robotik radikal prostatektomi') etiketli ${addedCount} vaka Firebase'den çekildi.`);
       } else {
-        setSyncStatusMsg(`ℹ️ Belirtilen filtre kriterlerine uygun yeni vaka bulunamadı.`);
+        setSyncStatusMsg(`ℹ️ Ameliyat tarihi bugün (${todayStr}) veya sonrası olan yeni bir vaka bulunamadı.`);
       }
     } catch (err) {
       console.error("Firebase sync error:", err);
@@ -56,7 +55,7 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
   };
 
   useEffect(() => {
-    loadFirebaseCases(true);
+    loadFirebaseCases();
   }, []);
 
   const handleAddManual = (e: React.FormEvent) => {
@@ -121,27 +120,19 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
             <Calendar className="text-blue-400" size={24} /> Gelecek Operasyonlar Portalı
           </h2>
           <p className="text-xs text-slate-300 mt-1">
-            Filtre kelimeleri: <strong className="text-amber-300 font-bold">'robot rp', 'robotik rp', 'robotik radikal prostatektomi', 'rarp'</strong>
+            Filtre kelimeleri: <strong className="text-amber-300 font-bold">'robot rp', 'robotik rp', 'robotik radikal prostatektomi'</strong>
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-col sm:flex-row items-center gap-3">
           <button
-            onClick={() => loadFirebaseCases(true)}
+            onClick={loadFirebaseCases}
             disabled={isSyncing}
             className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-black rounded-xl shadow-lg shadow-amber-500/30 flex items-center gap-2 transition-all shrink-0 disabled:opacity-50"
             title="Ameliyat tarihi bugün veya sonrası olan hastaları çek"
           >
             <RefreshCw size={16} className={isSyncing ? "animate-spin" : ""} />
-            Gelecek Ameliyatları Çek (Bugün ve Sonrası)
-          </button>
-          <button
-            onClick={() => loadFirebaseCases(false)}
-            disabled={isSyncing}
-            className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shrink-0"
-            title="Tarih sınırı olmadan Firebase'deki tüm robotik ameliyatları getir"
-          >
-            <Layers size={14} /> Tümünü Çek
+            {isSyncing ? "Gelecek Ameliyatlar Çekiliyor..." : "Gelecek Ameliyatları Çek (Bugün ve Sonrası)"}
           </button>
           <button
             onClick={() => setShowAddModal(true)}
@@ -164,9 +155,9 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {upcomingOps.length === 0 ? (
           <div className="col-span-full bg-white p-12 rounded-2xl border border-slate-200 text-center space-y-3">
-            <p className="text-slate-700 font-black text-base">Robotik Prostatektomi Ameliyat Kaydı Bulunmuyor</p>
+            <p className="text-slate-700 font-black text-base">Ameliyat Tarihi Bugün veya Sonrası Olan Kayıt Bulunmuyor</p>
             <p className="text-xs text-slate-500 max-w-md mx-auto">
-              Yukarıdaki <strong>"Gelecek Ameliyatları Çek"</strong> veya <strong>"Tümünü Çek"</strong> butonuna basarak Firebase projenizden <i>'robot rp'</i>, <i>'robotik rp'</i> veya <i>'robotik radikal prostatektomi'</i> etiketli tüm vakaları listenize çekebilirsiniz.
+              Yukarıdaki <strong>"Gelecek Ameliyatları Çek (Bugün ve Sonrası)"</strong> butonuna basarak Firebase projenizden <i>'robot rp'</i>, <i>'robotik rp'</i> veya <i>'robotik radikal prostatektomi'</i> etiketli vakaları listenize çekebilirsiniz.
             </p>
           </div>
         ) : (
