@@ -1,36 +1,16 @@
-import React, { useState } from 'react';
-import { UpcomingOperation, Patient, getInitialPatient } from './types';
-import { Calendar, Plus, RefreshCw, CheckCircle2, Trash2, Smartphone, Clock, Flame, ShieldAlert } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { UpcomingOperation, Patient } from './types';
+import { fetchFirebaseUpcomingCases } from './firebaseClient';
+import { Calendar, Plus, RefreshCw, CheckCircle2, Trash2, Smartphone, Clock, Flame, ShieldAlert, Check } from 'lucide-react';
 
 interface UpcomingOperationsProps {
   onConvertToThesis: (patientData: Partial<Patient>, upcomingId?: string) => void;
 }
 
 export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperationsProps) {
-  const [upcomingOps, setUpcomingOps] = useState<UpcomingOperation[]>([
-    {
-      id: 'demo-1',
-      patient_name: 'Ahmet Yılmaz',
-      protocol: '984512',
-      phone: '05321112233',
-      op_date: '2026-08-10',
-      surgeon: 'FK',
-      notes: 'Preop PSA: 7.2 ng/mL, PIRADS 4 (Sağ lob)',
-      source: 'FIREBASE',
-      status: 'SCHEDULED'
-    },
-    {
-      id: 'demo-2',
-      patient_name: 'Mehmet Demir',
-      protocol: '984515',
-      phone: '05423334455',
-      op_date: '2026-08-15',
-      surgeon: 'MSK',
-      notes: 'Preop PSA: 11.4 ng/mL, ISUP 3 (3+4)',
-      source: 'FIREBASE',
-      status: 'SCHEDULED'
-    }
-  ]);
+  const [upcomingOps, setUpcomingOps] = useState<UpcomingOperation[]>([]);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [newOp, setNewOp] = useState<Partial<UpcomingOperation>>({
@@ -42,15 +22,29 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
     notes: ''
   });
 
-  const [isSyncing, setIsSyncing] = useState(false);
-
-  const handleSyncFirebase = () => {
+  const loadFirebaseCases = async () => {
     setIsSyncing(true);
-    setTimeout(() => {
+    try {
+      const fbCases = await fetchFirebaseUpcomingCases();
+      if (fbCases.length > 0) {
+        setUpcomingOps(prev => {
+          // Merge avoiding duplicate IDs
+          const existingIds = new Set(prev.map(p => p.id));
+          const newCases = fbCases.filter(c => !existingIds.has(c.id));
+          return [...newCases, ...prev];
+        });
+      }
+      setLastSyncTime(new Date().toLocaleTimeString('tr-TR'));
+    } catch (err) {
+      console.error("Firebase sync error:", err);
+    } finally {
       setIsSyncing(false);
-      alert("Firebase senkronizasyonu tamamlandı! Güncel robotik prostatektomi verileri çekildi.");
-    }, 1200);
+    }
   };
+
+  useEffect(() => {
+    loadFirebaseCases();
+  }, []);
 
   const handleAddManual = (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,16 +81,16 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
   };
 
   const handleCompleteSurgery = (op: UpcomingOperation) => {
-    // Converts upcoming operation into a partial thesis patient record
     const patientData: Partial<Patient> = {
       patient_name: op.patient_name,
       protocol: op.protocol,
       phone: op.phone,
       surgeon: op.surgeon,
       op_date: op.op_date,
-      // Technique (HOOD or STANDART) will be selected by doctor in PatientForm!
     };
 
+    // Remove from upcoming list once converted
+    setUpcomingOps(prev => prev.filter(o => o.id !== op.id));
     onConvertToThesis(patientData, op.id);
   };
 
@@ -105,24 +99,28 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
       {/* Header Banner */}
       <div className="bg-gradient-to-r from-slate-900 to-blue-950 text-white p-6 rounded-2xl shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <span className="bg-blue-600 text-white text-[10px] font-black uppercase px-3 py-1 rounded-md tracking-wider">
-            Ameliyat Planlama & Firebase Kuyruğu
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="bg-orange-500 text-white text-[10px] font-black uppercase px-3 py-1 rounded-md tracking-wider flex items-center gap-1">
+              🔥 Live Firebase Connected
+            </span>
+            <span className="text-[10px] text-slate-300 font-mono">Project: urology-case-list-ea0c1</span>
+          </div>
           <h2 className="text-xl font-black mt-2 flex items-center gap-2">
             <Calendar className="text-blue-400" size={24} /> Gelecek Operasyonlar Portalı
           </h2>
           <p className="text-xs text-slate-300 mt-1">
-            Firebase ameliyat kayıt sisteminden veya manuel eklenen robotik prostatektomi vakaları burada listelenir. Ameliyat sonrası tek tıkla teknik (HOOD / STANDART) seçerek teze aktarabilirsiniz.
+            <strong className="text-amber-300 font-bold">urology-case-list-ea0c1</strong> Firebase sisteminizden otomatik çekilen robotik prostatektomi vakaları buraya düşer. Ameliyat sonrası tek tıkla teknik (HOOD / STANDART) seçerek teze aktarabilirsiniz.
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row items-center gap-3">
           <button
-            onClick={handleSyncFirebase}
-            className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-black rounded-xl shadow-lg shadow-amber-500/30 flex items-center gap-2 transition-all shrink-0"
+            onClick={loadFirebaseCases}
+            disabled={isSyncing}
+            className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-black rounded-xl shadow-lg shadow-amber-500/30 flex items-center gap-2 transition-all shrink-0 disabled:opacity-50"
           >
             <RefreshCw size={16} className={isSyncing ? "animate-spin" : ""} />
-            Firebase'den Canlı Çek
+            {isSyncing ? "Firebase Senkronize Ediliyor..." : "Firebase'den Canlı Çek"}
           </button>
           <button
             onClick={() => setShowAddModal(true)}
@@ -136,8 +134,11 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
       {/* Operations Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {upcomingOps.length === 0 ? (
-          <div className="col-span-full bg-white p-12 rounded-2xl border border-slate-200 text-center text-slate-500 font-bold">
-            Gelecek operasyon kaydı bulunamadı.
+          <div className="col-span-full bg-white p-12 rounded-2xl border border-slate-200 text-center space-y-3">
+            <p className="text-slate-600 font-black text-sm">Gelecek operasyon kaydı bulunamadı.</p>
+            <p className="text-xs text-slate-500 max-w-md mx-auto">
+              <strong>urology-case-list-ea0c1</strong> Firebase projeniz bağlandı. Firebase'e yeni bir vaka eklendiğinde yukarıdaki <strong>"Firebase'den Canlı Çek"</strong> butonuna basabilir veya manuel ameliyat ekleyebilirsiniz.
+            </p>
           </div>
         ) : (
           upcomingOps.map(op => {
@@ -170,7 +171,7 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
                       <span>Planlanan Tarih: <strong>{op.op_date}</strong></span>
                     </div>
                     <p className="text-[11px] text-slate-500 font-medium">
-                      {diffDays > 0 ? `🗓 Ameliyata ${diffDays} gün var` : diffDays === 0 ? '🔥 BUGÜN AMELİYAT GÜNÜ' : '⏳ Tarihi Geçti'}
+                      {diffDays > 0 ? `🗓 Ameliyata ${diffDays} gün var` : diffDays === 0 ? '🔥 BUGÜN AMELİYAT GÜNÜ' : '⏳ Ameliyat Günü Geldi / Geçti'}
                     </p>
                     {op.notes && (
                       <p className="text-slate-700 border-t border-slate-200 pt-1.5 mt-1 text-[11px]">
