@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Patient } from './types';
-import { getWhatsAppBusinessAppScheme, getWhatsAppWebLink } from './utils';
-import { Bell, Calendar, MessageSquare, AlertCircle, CheckCircle, Clock, Search, Microscope, Smartphone } from 'lucide-react';
+import { getWhatsAppLink } from './utils';
+import { Bell, Calendar, MessageSquare, AlertCircle, CheckCircle, Clock, Search, Microscope } from 'lucide-react';
 
 interface RemindersPanelProps {
   patients: Patient[];
@@ -217,8 +217,7 @@ export default function RemindersPanel({ patients }: RemindersPanelProps) {
                 </tr>
               ) : (
                 filteredReminders.map((r, idx) => {
-                  const businessAppScheme = getWhatsAppBusinessAppScheme(r.patient.phone, r.patient.patient_name, r.patient.surgeon);
-                  const webLink = getWhatsAppWebLink(r.patient.phone, r.patient.patient_name, r.patient.surgeon);
+                  const waLink = getWhatsAppLink(r.patient.phone, r.patient.patient_name, r.patient.surgeon);
 
                   return (
                     <tr key={idx} className="hover:bg-blue-50/60 transition-colors group border-b border-slate-100">
@@ -253,25 +252,15 @@ export default function RemindersPanel({ patients }: RemindersPanelProps) {
                         {r.daysPassed} gün ({Math.floor(r.daysPassed / 30)} ay)
                       </td>
                       <td className="px-4 py-3.5 text-right">
-                        {r.patient.phone && businessAppScheme && webLink ? (
-                          <div className="flex items-center justify-end gap-2">
-                            <a
-                              href={businessAppScheme}
-                              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-md shadow-emerald-600/30 inline-flex items-center gap-1.5 transition-all"
-                              title="Doğrudan WhatsApp Business uygulamasını açar"
-                            >
-                              <Smartphone size={14} /> WhatsApp Business App
-                            </a>
-                            <a
-                              href={webLink}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="px-2.5 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-900 text-xs font-bold rounded-xl transition-all"
-                              title="Web / PC için"
-                            >
-                              Web
-                            </a>
-                          </div>
+                        {r.patient.phone && waLink ? (
+                          <a
+                            href={waLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-md shadow-emerald-600/30 inline-flex items-center gap-1.5 transition-all"
+                          >
+                            <MessageSquare size={14} /> WhatsApp Business
+                          </a>
                         ) : (
                           <span className="text-slate-400 font-normal">Telefon yok</span>
                         )}
