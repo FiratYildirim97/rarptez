@@ -4,6 +4,7 @@ import PatientList from "./PatientList";
 import PatientForm from "./PatientForm";
 import RemindersPanel from "./RemindersPanel";
 import ThesisStats from "./ThesisStats";
+import UpcomingOperations from "./UpcomingOperations";
 import { Patient, getInitialPatient } from "./types";
 import { exportToExcel } from "./ExportUtils";
 import { supabase } from "./supabaseClient";
@@ -19,13 +20,14 @@ import {
   RefreshCw, 
   Globe,
   Bell,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Calendar
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 export default function App() {
   const [patients, setPatients] = useState<Patient[]>([]);
-  const [view, setView] = useState<"dashboard" | "list" | "form" | "reminders" | "thesis">("dashboard");
+  const [view, setView] = useState<"dashboard" | "list" | "form" | "reminders" | "thesis" | "upcoming">("dashboard");
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
@@ -113,6 +115,16 @@ export default function App() {
     } else {
       setPatients(prev => prev.filter(p => p.id !== id));
     }
+  };
+
+  const handleConvertToThesis = (patientData: Partial<Patient>) => {
+    const newP: Patient = {
+      ...getInitialPatient(),
+      ...patientData,
+      group_name: "HOOD" // Defaults in form, doctor can change to STANDART freely!
+    };
+    setEditingPatient(newP);
+    setView("form");
   };
 
   const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -223,6 +235,14 @@ export default function App() {
               <LayoutDashboard size={18} /> İstatistik & Grafik Paneli
             </button>
             <button
+              onClick={() => { setView("upcoming"); if (window.innerWidth < 1024) setIsSidebarOpen(false); }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-bold text-xs ${
+                view === "upcoming" ? "bg-emerald-600 text-white shadow-lg shadow-emerald-600/40" : "text-slate-300 hover:bg-slate-800 hover:text-white"
+              }`}
+            >
+              <Calendar size={18} /> 📅 Gelecek Operasyonlar
+            </button>
+            <button
               onClick={() => { setView("reminders"); if (window.innerWidth < 1024) setIsSidebarOpen(false); }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-bold text-xs ${
                 view === "reminders" ? "bg-amber-600 text-white shadow-lg shadow-amber-600/40" : "text-slate-300 hover:bg-slate-800 hover:text-white"
@@ -308,6 +328,7 @@ export default function App() {
             </button>
             <h2 className="text-base font-extrabold text-slate-900">
               {view === "dashboard" ? "İstatistik & Karşılaştırmalı Analiz Paneli" :
+               view === "upcoming" ? "📅 Gelecek Operasyonlar Portalı (Firebase Senkronize)" :
                view === "reminders" ? "🔔 Yaklaşan Kontrol Hatırlatıcı Paneli" :
                view === "thesis" ? "📊 Tez İstatistiksel Analiz Modülü (SPSS / t-test)" :
                view === "list" ? "Hasta Kayıt Veritabanı (Supabase)" :
@@ -344,6 +365,17 @@ export default function App() {
                 exit={{ opacity: 0, y: -10 }}
               >
                 <Dashboard patients={patients} />
+              </motion.div>
+            )}
+
+            {view === "upcoming" && (
+              <motion.div
+                key="upcoming"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+              >
+                <UpcomingOperations onConvertToThesis={handleConvertToThesis} />
               </motion.div>
             )}
 

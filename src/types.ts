@@ -3,6 +3,19 @@ export enum SurgicalTechnique {
   STANDART = "STANDART"
 }
 
+export interface UpcomingOperation {
+  id?: string;
+  patient_name: string;
+  protocol?: string | null;
+  phone?: string | null;
+  op_date: string;
+  surgeon?: string | null;
+  notes?: string | null;
+  source?: 'FIREBASE' | 'MANUAL';
+  status?: 'SCHEDULED' | 'COMPLETED' | 'CANCELLED';
+  created_at?: string;
+}
+
 export interface Patient {
   id?: string;
   group_name: "HOOD" | "STANDART";
