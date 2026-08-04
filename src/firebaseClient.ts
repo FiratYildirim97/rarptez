@@ -9,13 +9,117 @@ export const firebaseConfig = {
   appId: "1:733847900230:web:6c6aa1d906be8dffbb7a47"
 };
 
-// Lightweight REST API connector for urology-case-list-ea0c1 Firebase project
-export async function fetchFirebaseUpcomingCases(): Promise<UpcomingOperation[]> {
+// Helper function to extract text values from Firestore REST API field objects
+function getFieldValue(fieldObj: any): any {
+  if (!fieldObj) return null;
+  if (fieldObj.stringValue !== undefined) return fieldObj.stringValue;
+  if (fieldObj.integerValue !== undefined) return fieldObj.integerValue;
+  if (fieldObj.doubleValue !== undefined) return fieldObj.doubleValue;
+  if (fieldObj.timestampValue !== undefined) return fieldObj.timestampValue;
+  if (fieldObj.mapValue && fieldObj.mapValue.fields) {
+    const res: any = {};
+    Object.keys(fieldObj.mapValue.fields).forEach(k => {
+      res[k] = getFieldValue(fieldObj.mapValue.fields[k]);
+    });
+    return res;
+  }
+  if (fieldObj.arrayValue && fieldObj.arrayValue.values) {
+    return fieldObj.arrayValue.values.map((v: any) => getFieldValue(v));
+  }
+  return null;
+}
+
+// Deep search object for patient name with all Turkish and English naming variations
+function extractPatientName(d: any): string | null {
+  if (!d || typeof d !== 'object') return null;
+
+  const keys = [
+    'hastaName', 'hasta_adi', 'hastaAdi', 'hasta', 'patientName', 'patient_name', 
+    'fullname', 'full_name', 'ad_soyad', 'adSoyad', 'name', 'hastaIsim', 
+    'hasta_isim', 'ad', 'soyad', 'patient', 'nameSurname'
+  ];
+
+  for (const k of keys) {
+    if (d[k] && typeof d[k] === 'string' && d[k].trim() !== '') {
+      return d[k].trim();
+    }
+  }
+
+  // Check composite ad + soyad
+  if (d.ad || d.first_name || d.firstName) {
+    const first = d.ad || d.first_name || d.firstName || '';
+    const last = d.soyad || d.last_name || d.lastName || '';
+    const combined = `${first} ${last}`.trim();
+    if (combined) return combined;
+  }
+
+  return null;
+}
+
+function extractProtocol(d: any): string | null {
+  if (!d || typeof d !== 'object') return null;
+  const keys = ['protocol', 'protokol', 'protocolNo', 'protokolNo', 'dosyaNo', 'dosya_no', 'tc', 'tcNo', 'tc_no', 'id', 'barcode'];
+  for (const k of keys) {
+    if (d[k] !== undefined && d[k] !== null && String(d[k]).trim() !== '') {
+      return String(d[k]).trim();
+    }
+  }
+  return null;
+}
+
+function extractPhone(d: any): string | null {
+  if (!d || typeof d !== 'object') return null;
+  const keys = ['phone', 'telefon', 'tel', 'phoneNumber', 'phone_number', 'gsm', 'mobile'];
+  for (const k of keys) {
+    if (d[k] && String(d[k]).trim() !== '') {
+      return String(d[k]).trim();
+    }
+  }
+  return null;
+}
+
+function extractOpDate(d: any): string {
+  if (!d || typeof d !== 'object') return new Date().toISOString().split('T')[0];
+  const keys = ['op_date', 'opDate', 'date', 'tarih', 'ameliyatTarihi', 'ameliyat_tarihi', 'created_at', 'createdAt', 'time'];
+  for (const k of keys) {
+    if (d[k]) {
+      const valStr = String(d[k]).trim();
+      if (valStr.length >= 10 && !isNaN(new Date(valStr.substring(0, 10)).getTime())) {
+        return valStr.substring(0, 10);
+      }
+    }
+  }
+  return new Date().toISOString().split('T')[0];
+}
+
+function extractSurgeon(d: any): string {
+  if (!d || typeof d !== 'object') return 'FK';
+  const keys = ['surgeon', 'cerrah', 'doktor', 'doctor', 'op_doctor', 'opDoctor'];
+  for (const k of keys) {
+    if (d[k] && String(d[k]).trim() !== '') {
+      return String(d[k]).trim();
+    }
+  }
+  return 'FK';
+}
+
+function extractNotes(d: any): string | null {
+  if (!d || typeof d !== 'object') return null;
+  const keys = ['notes', 'notlar', 'aciklama', 'diagnose', 'tani', 'tanı', 'op_type', 'ameliyat'];
+  for (const k of keys) {
+    if (d[k] && String(d[k]).trim() !== '') {
+      return String(d[k]).trim();
+    }
+  }
+  return null;
+}
+
+export async function fetchFirebaseUpcomingCases(filterSinceDate?: string | null): Promise<UpcomingOperation[]> {
   const cases: UpcomingOperation[] = [];
 
   const possibleCollections = [
     'cases', 'ameliyatlar', 'patients', 'operations', 'surgeries', 
-    'vaka_listesi', 'vakalar', 'urology_cases', 'vakalistesi', 'randevular'
+    'vaka_listesi', 'vakalar', 'urology_cases', 'vakalistesi', 'randevular', 'list'
   ];
 
   // 1. Fetch from Firestore REST API
@@ -27,26 +131,30 @@ export async function fetchFirebaseUpcomingCases(): Promise<UpcomingOperation[]>
         const data = await res.json();
         if (data.documents && Array.isArray(data.documents)) {
           data.documents.forEach((doc: any) => {
-            const fields = doc.fields || {};
-            const parseVal = (f: any) => f?.stringValue || f?.integerValue || f?.doubleValue || null;
+            const rawFields = doc.fields || {};
+            const parsedObj: any = {};
+            Object.keys(rawFields).forEach(k => {
+              parsedObj[k] = getFieldValue(rawFields[k]);
+            });
 
-            const name = parseVal(fields.patient_name) || parseVal(fields.hasta_adi) || parseVal(fields.hasta) || parseVal(fields.name) || 'İsimsiz Hasta';
-            const protocol = parseVal(fields.protocol) || parseVal(fields.protokol) || parseVal(fields.dosya_no);
-            const phone = parseVal(fields.phone) || parseVal(fields.telefon) || parseVal(fields.tel);
-            const date = parseVal(fields.op_date) || parseVal(fields.tarih) || parseVal(fields.date) || parseVal(fields.ameliyat_tarihi) || new Date().toISOString().split('T')[0];
-            const surgeon = parseVal(fields.surgeon) || parseVal(fields.cerrah) || parseVal(fields.doktor) || 'FK';
-            const notes = parseVal(fields.notes) || parseVal(fields.notlar) || parseVal(fields.aciklama);
+            const patientName = extractPatientName(parsedObj);
+            const opDate = extractOpDate(parsedObj);
+
+            // Filter since last sync date if provided
+            if (filterSinceDate && opDate < filterSinceDate) {
+              return;
+            }
 
             const docId = doc.name.split('/').pop();
 
             cases.push({
               id: 'fb-fs-' + docId,
-              patient_name: name,
-              protocol,
-              phone,
-              op_date: date,
-              surgeon,
-              notes,
+              patient_name: patientName || `Hasta (${parsedObj.protocol || parsedObj.protokol || docId})`,
+              protocol: extractProtocol(parsedObj),
+              phone: extractPhone(parsedObj),
+              op_date: opDate,
+              surgeon: extractSurgeon(parsedObj),
+              notes: extractNotes(parsedObj),
               source: 'FIREBASE',
               status: 'SCHEDULED'
             });
@@ -72,40 +180,30 @@ export async function fetchFirebaseUpcomingCases(): Promise<UpcomingOperation[]>
           const rootData = await res.json();
           if (rootData && typeof rootData === 'object') {
             const processNode = (node: any, pathName: string) => {
-              if (Array.isArray(node)) {
-                node.forEach((item, idx) => {
-                  if (item && typeof item === 'object') {
-                    cases.push({
-                      id: `fb-rtdb-${pathName}-${idx}`,
-                      patient_name: item.patient_name || item.hasta_adi || item.hasta || item.name || 'İsimsiz Hasta',
-                      protocol: item.protocol || item.protokol || item.dosya_no || null,
-                      phone: item.phone || item.telefon || item.tel || null,
-                      op_date: item.op_date || item.tarih || item.date || new Date().toISOString().split('T')[0],
-                      surgeon: item.surgeon || item.cerrah || 'FK',
-                      notes: item.notes || item.notlar || null,
-                      source: 'FIREBASE',
-                      status: 'SCHEDULED'
-                    });
+              const items = Array.isArray(node) ? node : Object.keys(node).map(k => node[k]);
+              
+              items.forEach((item, idx) => {
+                if (item && typeof item === 'object') {
+                  const patientName = extractPatientName(item);
+                  const opDate = extractOpDate(item);
+
+                  if (filterSinceDate && opDate < filterSinceDate) {
+                    return;
                   }
-                });
-              } else if (typeof node === 'object') {
-                Object.keys(node).forEach(k => {
-                  const item = node[k];
-                  if (item && typeof item === 'object') {
-                    cases.push({
-                      id: `fb-rtdb-${pathName}-${k}`,
-                      patient_name: item.patient_name || item.hasta_adi || item.hasta || item.name || 'İsimsiz Hasta',
-                      protocol: item.protocol || item.protokol || item.dosya_no || null,
-                      phone: item.phone || item.telefon || item.tel || null,
-                      op_date: item.op_date || item.tarih || item.date || new Date().toISOString().split('T')[0],
-                      surgeon: item.surgeon || item.cerrah || 'FK',
-                      notes: item.notes || item.notlar || null,
-                      source: 'FIREBASE',
-                      status: 'SCHEDULED'
-                    });
-                  }
-                });
-              }
+
+                  cases.push({
+                    id: `fb-rtdb-${pathName}-${idx}`,
+                    patient_name: patientName || item.name || item.hasta || `Hasta (${item.protokol || idx})`,
+                    protocol: extractProtocol(item),
+                    phone: extractPhone(item),
+                    op_date: opDate,
+                    surgeon: extractSurgeon(item),
+                    notes: extractNotes(item),
+                    source: 'FIREBASE',
+                    status: 'SCHEDULED'
+                  });
+                }
+              });
             };
 
             Object.keys(rootData).forEach(key => {
