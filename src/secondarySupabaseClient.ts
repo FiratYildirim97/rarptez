@@ -6,6 +6,7 @@ export const SECONDARY_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9
 
 export const secondarySupabase = createClient(SECONDARY_SUPABASE_URL, SECONDARY_SUPABASE_ANON_KEY);
 
+// Turkish case-insensitive lowercasing (handles İ/i, I/ı, Ü/ü, Ö/ö, Ş/ş, Ç/ç, Ğ/ğ)
 function toTrLowerCase(str: string): string {
   if (!str) return '';
   return String(str).toLocaleLowerCase('tr-TR');
@@ -106,21 +107,31 @@ function extractNotes(d: any): string | null {
   return null;
 }
 
-function isRoboticProstatectomyCase(d: any): boolean {
-  if (!d || typeof d !== 'object') return true;
+// STRICT FILTER: ONLY cases where operation column contains 'Robot RP', 'Robotik RP', or 'Robotik radikal prostatektomi'
+function isStrictRoboticProstatectomyCase(item: any): boolean {
+  if (!item || typeof item !== 'object') return false;
 
-  const operationText = d.operation ? toTrLowerCase(String(d.operation)) : toTrLowerCase(JSON.stringify(d));
-  const keywords = ['robot rp', 'robotik rp', 'robotik radikal prostatektomi', 'prostatektomi', 'prostatectomy', 'rarp', 'radikal prostatektomi', 'robot', 'prostat'];
-  
-  for (const kw of keywords) {
-    if (operationText.includes(toTrLowerCase(kw))) return true;
+  const opVal = item.operation || item.op_type || item.ameliyat || item.title || item.notes || '';
+  const opText = toTrLowerCase(String(opVal));
+
+  const strictKeywords = [
+    'robot rp',
+    'robotik rp',
+    'robotik radikal prostatektomi'
+  ];
+
+  for (const kw of strictKeywords) {
+    if (opText.includes(toTrLowerCase(kw))) {
+      return true;
+    }
   }
 
-  return true;
+  return false;
 }
 
 export async function fetchFromSecondarySupabase(minOpDate?: string | null): Promise<{ cases: UpcomingOperation[], rawError?: string, totalFound?: number, sampleItem?: any }> {
   const cases: UpcomingOperation[] = [];
+  const cutoffDate = minOpDate || new Date().toISOString().split('T')[0];
 
   try {
     const { data, error } = await secondarySupabase
@@ -139,10 +150,12 @@ export async function fetchFromSecondarySupabase(minOpDate?: string | null): Pro
     const sampleItem = data[0];
 
     data.forEach((item, idx) => {
-      if (!isRoboticProstatectomyCase(item)) return;
+      // 1. STRICT FILTER: Only 'Robot RP', 'Robotik RP', 'Robotik radikal prostatektomi'
+      if (!isStrictRoboticProstatectomyCase(item)) return;
 
+      // 2. DATE FILTER: Only date >= today
       const opDate = extractOpDate(item);
-      if (minOpDate && opDate < minOpDate) return;
+      if (cutoffDate && opDate < cutoffDate) return;
 
       const patientName = extractPatientName(item);
 
