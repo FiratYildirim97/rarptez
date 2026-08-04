@@ -58,7 +58,6 @@ function extractPhone(d: any): string | null {
   return null;
 }
 
-// Extract date from 'date' or other date fields and normalize to YYYY-MM-DD
 function extractOpDate(d: any): string {
   if (!d || typeof d !== 'object') return new Date().toISOString().split('T')[0];
   const keys = ['date', 'op_date', 'opDate', 'tarih', 'ameliyatTarihi', 'ameliyat_tarihi', 'created_at', 'createdAt', 'time', 'surgery_date'];
@@ -107,33 +106,22 @@ function extractNotes(d: any): string | null {
   return null;
 }
 
-// Check 'operation' column specifically for robotic prostatectomy keywords
 function isRoboticProstatectomyCase(d: any): boolean {
   if (!d || typeof d !== 'object') return true;
 
   const operationText = d.operation ? toTrLowerCase(String(d.operation)) : toTrLowerCase(JSON.stringify(d));
+  const keywords = ['robot rp', 'robotik rp', 'robotik radikal prostatektomi', 'prostatektomi', 'prostatectomy', 'rarp', 'radikal prostatektomi', 'robot', 'prostat'];
   
-  const keywords = [
-    'robot rp', 
-    'robotik rp', 
-    'robotik radikal prostatektomi', 
-    'prostatektomi', 
-    'prostatectomy', 
-    'rarp', 
-    'radikal prostatektomi',
-    'robot'
-  ];
-
   for (const kw of keywords) {
     if (operationText.includes(toTrLowerCase(kw))) return true;
   }
 
+  // Fallback to true if no operation column filtering is present
   return true;
 }
 
-export async function fetchFromSecondarySupabase(minOpDate?: string | null): Promise<{ cases: UpcomingOperation[], rawError?: string }> {
+export async function fetchFromSecondarySupabase(minOpDate?: string | null): Promise<{ cases: UpcomingOperation[], rawError?: string, totalFound?: number, sampleItem?: any }> {
   const cases: UpcomingOperation[] = [];
-  const cutoffDate = minOpDate || new Date().toISOString().split('T')[0];
 
   try {
     const { data, error } = await secondarySupabase
@@ -141,36 +129,40 @@ export async function fetchFromSecondarySupabase(minOpDate?: string | null): Pro
       .select('*');
 
     if (error) {
-      console.error("Secondary Supabase surgeries table fetch error:", error);
+      console.error("Secondary Supabase surgeries fetch error:", error);
       return { cases: [], rawError: error.message };
     }
 
-    if (data && Array.isArray(data) && data.length > 0) {
-      data.forEach((item, idx) => {
-        // 1. Scan 'operation' column for robotic prostatectomy keywords
-        if (!isRoboticProstatectomyCase(item)) return;
-
-        // 2. Scan 'date' column for op_date >= cutoffDate (today or future dates only!)
-        const opDate = extractOpDate(item);
-        if (cutoffDate && opDate < cutoffDate) return;
-
-        const patientName = extractPatientName(item);
-
-        cases.push({
-          id: `sec-sp-surgeries-${item.id || idx}`,
-          patient_name: patientName || item.hasta || item.name || `Hasta (${item.protokol || idx})`,
-          protocol: extractProtocol(item),
-          phone: extractPhone(item),
-          op_date: opDate,
-          surgeon: extractSurgeon(item),
-          notes: extractNotes(item),
-          source: 'SECONDARY_SUPABASE',
-          status: 'SCHEDULED'
-        });
-      });
+    if (!data || !Array.isArray(data) || data.length === 0) {
+      return { cases: [], totalFound: 0 };
     }
 
-    return { cases };
+    const sampleItem = data[0];
+
+    data.forEach((item, idx) => {
+      // Allow all robotic cases
+      if (!isRoboticProstatectomyCase(item)) return;
+
+      const opDate = extractOpDate(item);
+      // If cutoff date is provided, filter op_date >= minOpDate
+      if (minOpDate && opDate < minOpDate) return;
+
+      const patientName = extractPatientName(item);
+
+      cases.push({
+        id: `sec-sp-surgeries-${item.id || idx}`,
+        patient_name: patientName || item.hasta || item.name || `Hasta (${item.protokol || idx})`,
+        protocol: extractProtocol(item),
+        phone: extractPhone(item),
+        op_date: opDate,
+        surgeon: extractSurgeon(item),
+        notes: extractNotes(item),
+        source: 'SECONDARY_SUPABASE',
+        status: 'SCHEDULED'
+      });
+    });
+
+    return { cases, totalFound: data.length, sampleItem };
   } catch (err: any) {
     return { cases: [], rawError: err.message };
   }

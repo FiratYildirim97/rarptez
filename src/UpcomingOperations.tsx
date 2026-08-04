@@ -77,7 +77,7 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
     setIsSyncing(true);
     setSyncStatusMsg(null);
     try {
-      const { cases: secCases, rawError } = await fetchFromSecondarySupabase(todayStr);
+      const { cases: secCases, rawError, totalFound, sampleItem } = await fetchFromSecondarySupabase(todayStr);
 
       if (secCases && secCases.length > 0) {
         let addedCount = 0;
@@ -96,12 +96,14 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
           if (!error) addedCount++;
         }
 
-        setSyncStatusMsg(`✅ Diğer Supabase projenizin 'surgeries' tablosundan ${addedCount} yeni vaka Supabase veritabanınıza başarıyla aktarıldı.`);
+        setSyncStatusMsg(`✅ Diğer Supabase projenizin 'surgeries' tablosundan ${addedCount} vaka Supabase veritabanınıza başarıyla aktarıldı.`);
         loadSupabaseUpcomingCases();
       } else if (rawError) {
-        setSyncStatusMsg(`⚠️ Diğer Supabase 'surgeries' tablosuna bağlanırken hata: ${rawError}. (Lütfen Supabase panelinden 'surgeries' tablosu için RLS kuralını veya Okuma iznini kontrol edin).`);
+        setSyncStatusMsg(`⚠️ Diğer Supabase 'surgeries' tablosuna bağlanırken hata: ${rawError}`);
+      } else if (totalFound !== undefined && totalFound > 0) {
+        setSyncStatusMsg(`ℹ️ surgeries tablosunda toplam ${totalFound} vaka okundu fakat tarih/kelime filtresine takıldı. Örnek vaka: ${JSON.stringify(sampleItem)}`);
       } else {
-        setSyncStatusMsg(`ℹ️ Diğer Supabase projenizdeki 'surgeries' tablosunda ameliyat tarihi bugün (${todayStr}) veya sonrası olan robotik vaka bulunamadı.`);
+        setSyncStatusMsg(`ℹ️ Diğer Supabase projenizdeki 'surgeries' tablosu boş döndü (0 vaka bulundu).`);
       }
     } catch (err: any) {
       console.error("Secondary Supabase sync error:", err);
