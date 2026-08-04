@@ -17,73 +17,6 @@ export interface DiagnosticResult {
   errorDetails?: string;
 }
 
-// Diagnostic inspector to reveal exact Firebase collection structure and security rule status
-export async function diagnoseFirebaseConnection(): Promise<DiagnosticResult> {
-  const result: DiagnosticResult = {
-    firestoreStatus: 'Bilinmiyor',
-    rtdbStatus: 'Bilinmiyor',
-    foundCollections: [],
-    rawSamples: []
-  };
-
-  const collectionsToTest = [
-    'cases', 'ameliyatlar', 'patients', 'operations', 'surgeries', 
-    'vaka_listesi', 'vakalar', 'urology_cases', 'vakalistesi', 'randevular', 
-    'list', 'events', 'appointments', 'records', 'data', 'users'
-  ];
-
-  // Test Firestore
-  for (const colName of collectionsToTest) {
-    try {
-      const url = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/${colName}?key=${firebaseConfig.apiKey}`;
-      const res = await fetch(url);
-      
-      if (res.status === 200) {
-        const data = await res.json();
-        result.firestoreStatus = 'Erişim Başarılı (HTTP 200)';
-        if (data.documents && data.documents.length > 0) {
-          result.foundCollections.push(`Firestore: ${colName} (${data.documents.length} doküman)`);
-          data.documents.slice(0, 3).forEach((d: any) => {
-            result.rawSamples.push({ source: `Firestore/${colName}`, id: d.name.split('/').pop(), fields: d.fields });
-          });
-        }
-      } else if (res.status === 403) {
-        result.firestoreStatus = 'Erişim Engellendi (HTTP 403 - Firebase Güvenlik Kuralları Okumayı Kilitliyor)';
-      }
-    } catch (err: any) {
-      result.errorDetails = err.message;
-    }
-  }
-
-  // Test Realtime Database
-  const rtdbUrls = [
-    `https://${firebaseConfig.projectId}.firebaseio.com/.json?key=${firebaseConfig.apiKey}`,
-    `https://${firebaseConfig.projectId}-default-rtdb.firebaseio.com/.json?key=${firebaseConfig.apiKey}`
-  ];
-
-  for (const rtdbUrl of rtdbUrls) {
-    try {
-      const res = await fetch(rtdbUrl);
-      if (res.status === 200) {
-        const data = await res.json();
-        result.rtdbStatus = 'Erişim Başarılı (HTTP 200)';
-        if (data && typeof data === 'object') {
-          Object.keys(data).forEach(k => {
-            result.foundCollections.push(`RealtimeDB: ${k}`);
-            result.rawSamples.push({ source: `RealtimeDB/${k}`, sampleData: data[k] });
-          });
-        }
-      } else if (res.status === 401 || res.status === 403) {
-        result.rtdbStatus = 'Erişim Engellendi (HTTP 401/403 - Database Güvenlik Kuralı İzni Gerektiriyor)';
-      }
-    } catch (err) {
-      // Continue
-    }
-  }
-
-  return result;
-}
-
 function getFieldValue(fieldObj: any): any {
   if (!fieldObj) return null;
   if (fieldObj.stringValue !== undefined) return fieldObj.stringValue;
@@ -109,7 +42,7 @@ function extractPatientName(d: any): string | null {
   const keys = [
     'hastaName', 'hasta_adi', 'hastaAdi', 'hasta', 'patientName', 'patient_name', 
     'fullname', 'full_name', 'ad_soyad', 'adSoyad', 'name', 'hastaIsim', 
-    'hasta_isim', 'ad', 'soyad', 'patient', 'nameSurname', 'title'
+    'hasta_isim', 'ad', 'soyad', 'patient', 'nameSurname', 'title', 'patient_fullname'
   ];
 
   for (const k of keys) {
@@ -208,6 +141,83 @@ function isRoboticProstatectomyCase(d: any): boolean {
   return true;
 }
 
+// REST API Diagnostic Inspector
+export async function diagnoseFirebaseConnection(): Promise<DiagnosticResult> {
+  const result: DiagnosticResult = {
+    firestoreStatus: 'Test Ediliyor...',
+    rtdbStatus: 'Test Ediliyor...',
+    foundCollections: [],
+    rawSamples: []
+  };
+
+  const collectionsToTest = [
+    'cases', 'ameliyatlar', 'patients', 'operations', 'surgeries', 
+    'vaka_listesi', 'vakalar', 'urology_cases', 'vakalistesi', 'randevular', 
+    'list', 'events', 'appointments', 'records', 'data', 'users'
+  ];
+
+  // 1. Test Firestore REST
+  try {
+    for (const colName of collectionsToTest) {
+      const url = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/${colName}?key=${firebaseConfig.apiKey}`;
+      const res = await fetch(url);
+
+      if (res.status === 200) {
+        result.firestoreStatus = 'Firestore Bağlantısı Başarılı ✅ (HTTP 200)';
+        const data = await res.json();
+        if (data.documents && data.documents.length > 0) {
+          result.foundCollections.push(`Firestore: ${colName} (${data.documents.length} doküman)`);
+          data.documents.slice(0, 3).forEach((d: any) => {
+            const fieldsObj: any = {};
+            if (d.fields) {
+              Object.keys(d.fields).forEach(k => {
+                fieldsObj[k] = getFieldValue(d.fields[k]);
+              });
+            }
+            result.rawSamples.push({ source: `Firestore/${colName}`, id: d.name.split('/').pop(), data: fieldsObj });
+          });
+        }
+      } else if (res.status === 403) {
+        result.firestoreStatus = 'Firestore Kural Engeli 🔒 (HTTP 403 Permission Denied - Firebase Güvenlik Kuralları Okumayı Engelliyor)';
+      }
+    }
+
+    if (result.foundCollections.length === 0 && !result.firestoreStatus.includes('403')) {
+      result.firestoreStatus = 'Firestore Bağlantısı Açık Fakat Test Edilen Koleksiyon İsimlerinde Veri Bulunamadı';
+    }
+  } catch (err: any) {
+    result.firestoreStatus = 'Firestore Bağlantı Uyarısı: ' + err.message;
+  }
+
+  // 2. Test Realtime DB REST
+  const rtdbUrls = [
+    `https://${firebaseConfig.projectId}-default-rtdb.firebaseio.com/.json?key=${firebaseConfig.apiKey}`,
+    `https://${firebaseConfig.projectId}.firebaseio.com/.json?key=${firebaseConfig.apiKey}`
+  ];
+
+  for (const rtdbUrl of rtdbUrls) {
+    try {
+      const res = await fetch(rtdbUrl);
+      if (res.status === 200) {
+        const data = await res.json();
+        result.rtdbStatus = 'Realtime DB Bağlantısı Başarılı ✅ (HTTP 200)';
+        if (data && typeof data === 'object') {
+          Object.keys(data).forEach(k => {
+            result.foundCollections.push(`RealtimeDB: ${k}`);
+            result.rawSamples.push({ source: `RealtimeDB/${k}`, sampleData: data[k] });
+          });
+        }
+      } else if (res.status === 401 || res.status === 403) {
+        result.rtdbStatus = 'Realtime DB Kural Engeli 🔒 (HTTP 401/403 Permission Denied - Realtime DB Güvenlik Kuralı İzni Gerektiriyor)';
+      }
+    } catch (err: any) {
+      result.rtdbStatus = 'Realtime DB Bağlantı Uyarısı: ' + err.message;
+    }
+  }
+
+  return result;
+}
+
 export async function fetchFirebaseUpcomingCases(minOpDate?: string | null): Promise<UpcomingOperation[]> {
   const cases: UpcomingOperation[] = [];
   const cutoffDate = minOpDate || null;
@@ -232,16 +242,12 @@ export async function fetchFirebaseUpcomingCases(minOpDate?: string | null): Pro
               parsedObj[k] = getFieldValue(rawFields[k]);
             });
 
-            if (!isRoboticProstatectomyCase(parsedObj)) {
-              return;
-            }
+            if (!isRoboticProstatectomyCase(parsedObj)) return;
 
             const patientName = extractPatientName(parsedObj);
             const opDate = extractOpDate(parsedObj);
 
-            if (cutoffDate && opDate < cutoffDate) {
-              return;
-            }
+            if (cutoffDate && opDate < cutoffDate) return;
 
             const docId = doc.name.split('/').pop();
 
@@ -260,15 +266,15 @@ export async function fetchFirebaseUpcomingCases(minOpDate?: string | null): Pro
         }
       }
     } catch (err) {
-      // Continue
+      // Continue next
     }
   }
 
-  // 2. Fetch from Realtime Database REST API
+  // 2. Fetch from Realtime DB REST API if Firestore returned 0
   if (cases.length === 0) {
     const rtdbUrls = [
-      `https://${firebaseConfig.projectId}.firebaseio.com/.json?key=${firebaseConfig.apiKey}`,
-      `https://${firebaseConfig.projectId}-default-rtdb.firebaseio.com/.json?key=${firebaseConfig.apiKey}`
+      `https://${firebaseConfig.projectId}-default-rtdb.firebaseio.com/.json?key=${firebaseConfig.apiKey}`,
+      `https://${firebaseConfig.projectId}.firebaseio.com/.json?key=${firebaseConfig.apiKey}`
     ];
 
     for (const rtdbUrl of rtdbUrls) {
