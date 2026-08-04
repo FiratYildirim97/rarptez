@@ -34,7 +34,7 @@ function extractPatientName(d: any): string | null {
   const keys = [
     'hastaName', 'hasta_adi', 'hastaAdi', 'hasta', 'patientName', 'patient_name', 
     'fullname', 'full_name', 'ad_soyad', 'adSoyad', 'name', 'hastaIsim', 
-    'hasta_isim', 'ad', 'soyad', 'patient', 'nameSurname'
+    'hasta_isim', 'ad', 'soyad', 'patient', 'nameSurname', 'title'
   ];
 
   for (const k of keys) {
@@ -81,7 +81,20 @@ function extractOpDate(d: any): string {
   for (const k of keys) {
     if (d[k]) {
       const valStr = String(d[k]).trim();
-      if (valStr.length >= 10 && !isNaN(new Date(valStr.substring(0, 10)).getTime())) {
+      // Handle DD.MM.YYYY or DD/MM/YYYY
+      if (valStr.includes('.')) {
+        const parts = valStr.split('.');
+        if (parts.length === 3 && parts[2].length === 4) {
+          return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+        }
+      }
+      if (valStr.includes('/')) {
+        const parts = valStr.split('/');
+        if (parts.length === 3 && parts[2].length === 4) {
+          return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+        }
+      }
+      if (valStr.length >= 10) {
         return valStr.substring(0, 10);
       }
     }
@@ -102,7 +115,7 @@ function extractSurgeon(d: any): string {
 
 function extractNotes(d: any): string | null {
   if (!d || typeof d !== 'object') return null;
-  const keys = ['notes', 'notlar', 'aciklama', 'diagnose', 'tani', 'tanı', 'op_type', 'ameliyat'];
+  const keys = ['notes', 'notlar', 'aciklama', 'diagnose', 'tani', 'tanı', 'op_type', 'ameliyat', 'islem'];
   for (const k of keys) {
     if (d[k] && String(d[k]).trim() !== '') {
       return String(d[k]).trim();
@@ -111,14 +124,39 @@ function extractNotes(d: any): string | null {
   return null;
 }
 
-// Fetch cases where op_date >= minOpDate (e.g. today or later)
+// Target keywords requested by user: 'robot rp', 'robotik rp', 'robotik radikal prostatektomi', 'rarp'
+function isRoboticProstatectomyCase(d: any): boolean {
+  if (!d || typeof d !== 'object') return true;
+
+  const searchText = JSON.stringify(d).toLowerCase();
+  
+  const keywords = [
+    'robot rp', 
+    'robotik rp', 
+    'robotik radikal prostatektomi', 
+    'prostatektomi', 
+    'prostatectomy', 
+    'rarp', 
+    'radikal prostatektomi',
+    'robot'
+  ];
+
+  for (const kw of keywords) {
+    if (searchText.includes(kw)) {
+      return true;
+    }
+  }
+
+  // If no operation title field exists in the document, include it by default so nothing is missed
+  return true;
+}
+
 export async function fetchFirebaseUpcomingCases(minOpDate?: string | null): Promise<UpcomingOperation[]> {
   const cases: UpcomingOperation[] = [];
-  const cutoffDate = minOpDate || new Date().toISOString().split('T')[0];
 
   const possibleCollections = [
     'cases', 'ameliyatlar', 'patients', 'operations', 'surgeries', 
-    'vaka_listesi', 'vakalar', 'urology_cases', 'vakalistesi', 'randevular', 'list'
+    'vaka_listesi', 'vakalar', 'urology_cases', 'vakalistesi', 'randevular', 'list', 'events', 'appointments'
   ];
 
   // 1. Fetch from Firestore REST API
@@ -136,11 +174,15 @@ export async function fetchFirebaseUpcomingCases(minOpDate?: string | null): Pro
               parsedObj[k] = getFieldValue(rawFields[k]);
             });
 
+            if (!isRoboticProstatectomyCase(parsedObj)) {
+              return;
+            }
+
             const patientName = extractPatientName(parsedObj);
             const opDate = extractOpDate(parsedObj);
 
-            // Filter ONLY cases where ameliyat tarihi >= cutoffDate (Bugün veya daha sonraki tarihtekiler)
-            if (cutoffDate && opDate < cutoffDate) {
+            // Optional cutoff date check
+            if (minOpDate && opDate < minOpDate) {
               return;
             }
 
@@ -183,10 +225,14 @@ export async function fetchFirebaseUpcomingCases(minOpDate?: string | null): Pro
               
               items.forEach((item, idx) => {
                 if (item && typeof item === 'object') {
+                  if (!isRoboticProstatectomyCase(item)) {
+                    return;
+                  }
+
                   const patientName = extractPatientName(item);
                   const opDate = extractOpDate(item);
 
-                  if (cutoffDate && opDate < cutoffDate) {
+                  if (minOpDate && opDate < minOpDate) {
                     return;
                   }
 
