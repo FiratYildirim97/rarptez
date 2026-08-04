@@ -6,7 +6,6 @@ export const SECONDARY_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9
 
 export const secondarySupabase = createClient(SECONDARY_SUPABASE_URL, SECONDARY_SUPABASE_ANON_KEY);
 
-// Turkish case-insensitive lowercasing (handles İ/i, I/ı, Ü/ü, Ö/ö, Ş/ş, Ç/ç, Ğ/ğ)
 function toTrLowerCase(str: string): string {
   if (!str) return '';
   return String(str).toLocaleLowerCase('tr-TR');
@@ -85,12 +84,21 @@ function extractOpDate(d: any): string {
   return new Date().toISOString().split('T')[0];
 }
 
+// Extract surgeon from 'professor' column
 function extractSurgeon(d: any): string {
   if (!d || typeof d !== 'object') return 'FK';
-  const keys = ['surgeon', 'cerrah', 'doktor', 'doctor', 'op_doctor', 'opDoctor'];
+  const keys = ['professor', 'surgeon', 'cerrah', 'doktor', 'doctor', 'op_doctor', 'opDoctor'];
   for (const k of keys) {
     if (d[k] && String(d[k]).trim() !== '') {
-      return String(d[k]).trim();
+      const val = String(d[k]).trim();
+      const valLower = toTrLowerCase(val);
+      if (valLower.includes('kalemci') || valLower.includes('msk') || valLower.includes('serdar') || valLower.includes('mustafa')) {
+        return 'MSK';
+      }
+      if (valLower.includes('kızılay') || valLower.includes('kizilay') || valLower.includes('fk') || valLower.includes('fuat')) {
+        return 'FK';
+      }
+      return val;
     }
   }
   return 'FK';
@@ -107,7 +115,6 @@ function extractNotes(d: any): string | null {
   return null;
 }
 
-// STRICT FILTER: ONLY cases where operation column contains 'Robot RP', 'Robotik RP', or 'Robotik radikal prostatektomi'
 function isStrictRoboticProstatectomyCase(item: any): boolean {
   if (!item || typeof item !== 'object') return false;
 
@@ -150,10 +157,8 @@ export async function fetchFromSecondarySupabase(minOpDate?: string | null): Pro
     const sampleItem = data[0];
 
     data.forEach((item, idx) => {
-      // 1. STRICT FILTER: Only 'Robot RP', 'Robotik RP', 'Robotik radikal prostatektomi'
       if (!isStrictRoboticProstatectomyCase(item)) return;
 
-      // 2. DATE FILTER: Only date >= today
       const opDate = extractOpDate(item);
       if (cutoffDate && opDate < cutoffDate) return;
 
