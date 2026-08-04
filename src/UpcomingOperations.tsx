@@ -26,7 +26,6 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
 
   const todayStr = new Date().toISOString().split('T')[0];
 
-  // 1. Fetch upcoming operations directly from main Supabase thesis database
   const loadSupabaseUpcomingCases = async () => {
     setIsSyncing(true);
     try {
@@ -61,7 +60,6 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
   useEffect(() => {
     loadSupabaseUpcomingCases();
 
-    // Supabase Real-time Subscription for instant cross-device updates
     const channel = supabase
       .channel('upcoming_operations_changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'upcoming_operations' }, () => {
@@ -74,14 +72,14 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
     };
   }, []);
 
-  // 2. Fetch from Secondary Supabase Project (nrmjqjmyyxzkcskdldph) into Main Supabase
+  // Fetch from Secondary Supabase Project (nrmjqjmyyxzkcskdldph -> surgeries table)
   const loadSecondarySupabaseCases = async () => {
     setIsSyncing(true);
     setSyncStatusMsg(null);
     try {
-      const secCases = await fetchFromSecondarySupabase(todayStr);
+      const { cases: secCases, rawError } = await fetchFromSecondarySupabase(todayStr);
 
-      if (secCases.length > 0) {
+      if (secCases && secCases.length > 0) {
         let addedCount = 0;
 
         for (const secCase of secCases) {
@@ -98,10 +96,12 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
           if (!error) addedCount++;
         }
 
-        setSyncStatusMsg(`✅ Diğer Supabase projenizden ${addedCount} yeni vaka ana Supabase veritabanınıza başarıyla aktarıldı.`);
+        setSyncStatusMsg(`✅ Diğer Supabase projenizin 'surgeries' tablosundan ${addedCount} yeni vaka Supabase veritabanınıza başarıyla aktarıldı.`);
         loadSupabaseUpcomingCases();
+      } else if (rawError) {
+        setSyncStatusMsg(`⚠️ Diğer Supabase 'surgeries' tablosuna bağlanırken hata: ${rawError}. (Lütfen Supabase panelinden 'surgeries' tablosu için RLS kuralını veya Okuma iznini kontrol edin).`);
       } else {
-        setSyncStatusMsg(`ℹ️ Diğer Supabase projenizde ameliyat tarihi bugün (${todayStr}) veya sonrası olan yeni bir robotik vaka bulunamadı.`);
+        setSyncStatusMsg(`ℹ️ Diğer Supabase projenizdeki 'surgeries' tablosunda ameliyat tarihi bugün (${todayStr}) veya sonrası olan robotik vaka bulunamadı.`);
       }
     } catch (err: any) {
       console.error("Secondary Supabase sync error:", err);
@@ -111,7 +111,6 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
     }
   };
 
-  // 3. Add manual operation to Supabase
   const handleAddManual = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newOp.patient_name || !newOp.op_date) return;
@@ -143,7 +142,6 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
     }
   };
 
-  // 4. Excel / CSV File Upload directly into Supabase
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -204,7 +202,6 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
     reader.readAsBinaryString(file);
   };
 
-  // 5. Delete operation from Supabase
   const handleDelete = async (id: string) => {
     if (confirm("Bu ameliyat kaydını silmek istediğinize emin misiniz?")) {
       const { error } = await supabase.from('upcoming_operations').delete().eq('id', id);
@@ -214,7 +211,6 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
     }
   };
 
-  // 6. Complete surgery -> Delete from upcoming_operations & Move to Thesis Patients table
   const handleCompleteSurgery = async (op: UpcomingOperation) => {
     const patientData: Partial<Patient> = {
       patient_name: op.patient_name,
@@ -238,13 +234,13 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
             <span className="bg-emerald-500 text-white text-[10px] font-black uppercase px-3 py-1 rounded-md tracking-wider flex items-center gap-1">
               <Database size={12} /> Supabase Cloud Connected
             </span>
-            <span className="text-[10px] text-slate-300 font-mono">nrmjqjmyyxzkcskdldph</span>
+            <span className="text-[10px] text-slate-300 font-mono">surgeries @ nrmjqjmyyxzkcskdldph</span>
           </div>
           <h2 className="text-xl font-black mt-2 flex items-center gap-2">
             <Calendar className="text-blue-400" size={24} /> Gelecek Operasyonlar Portalı
           </h2>
           <p className="text-xs text-slate-300 mt-1">
-            Diğer Supabase projenizden (<strong>nrmjqjmyyxzkcskdldph</strong>) vakaları canlı çekin veya Excel ile yükleyin.
+            Diğer Supabase projenizin <strong>'surgeries'</strong> tablosundan vakaları canlı çekin.
           </p>
         </div>
 
@@ -253,10 +249,10 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
             onClick={loadSecondarySupabaseCases}
             disabled={isSyncing}
             className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-black rounded-xl shadow-lg shadow-amber-500/30 flex items-center gap-2 transition-all shrink-0 disabled:opacity-50"
-            title="Diğer Supabase projenizden canlı ameliyatları çek"
+            title="surgeries tablosundan ameliyatları çek"
           >
             <Zap size={16} className={isSyncing ? "animate-spin text-yellow-200" : "text-yellow-300"} />
-            {isSyncing ? "Supabase'den Çekiliyor..." : "Diğer Supabase'den Çek"}
+            {isSyncing ? "surgeries Çekiliyor..." : "surgeries Tablosundan Çek"}
           </button>
 
           <label className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-pointer transition-all shrink-0">
@@ -287,7 +283,7 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
           <div className="col-span-full bg-white p-12 rounded-2xl border border-slate-200 text-center space-y-3">
             <p className="text-slate-700 font-black text-base">Henüz Gelecek Ameliyat Kaydı Bulunmuyor</p>
             <p className="text-xs text-slate-500 max-w-md mx-auto">
-              Yukarıdaki <strong>"⚡ Diğer Supabase'den Çek"</strong> butonuna basarak diğer Supabase projenizdeki vakaları çekebilir veya <strong>"📥 Excel / CSV Yükle"</strong> butonundan listenizi ekleyebilirsiniz.
+              Yukarıdaki <strong>"⚡ surgeries Tablosundan Çek"</strong> butonuna basarak diğer Supabase projenizin <i>'surgeries'</i> tablosundaki ameliyatları çekebilirsiniz.
             </p>
           </div>
         ) : (
@@ -305,7 +301,7 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
                       op.source === 'EXCEL_IMPORT' ? 'bg-emerald-100 text-emerald-900 border border-emerald-200' :
                       'bg-blue-100 text-blue-900 border border-blue-200'
                     }`}>
-                      {op.source === 'SECONDARY_SUPABASE' ? '⚡ Canlı Supabase' : op.source === 'EXCEL_IMPORT' ? '📊 Excel Kaydı' : '⚡ Supabase Bulut'}
+                      {op.source === 'SECONDARY_SUPABASE' ? '⚡ surgeries Tablosu' : op.source === 'EXCEL_IMPORT' ? '📊 Excel Kaydı' : '⚡ Supabase Bulut'}
                     </span>
                     <span className="text-xs font-mono font-extrabold text-slate-700">
                       Cerrah: {op.surgeon || 'FK'}

@@ -17,7 +17,7 @@ function extractPatientName(d: any): string | null {
   const keys = [
     'hastaName', 'hasta_adi', 'hastaAdi', 'hasta', 'patientName', 'patient_name', 
     'fullname', 'full_name', 'ad_soyad', 'adSoyad', 'name', 'hastaIsim', 
-    'hasta_isim', 'ad', 'soyad', 'patient', 'nameSurname', 'title', 'patient_fullname'
+    'hasta_isim', 'ad', 'soyad', 'patient', 'nameSurname', 'title', 'patient_fullname', 'patientname'
   ];
 
   for (const k of keys) {
@@ -38,7 +38,7 @@ function extractPatientName(d: any): string | null {
 
 function extractProtocol(d: any): string | null {
   if (!d || typeof d !== 'object') return null;
-  const keys = ['protocol', 'protokol', 'protocolNo', 'protokolNo', 'dosyaNo', 'dosya_no', 'tc', 'tcNo', 'tc_no', 'id', 'barcode'];
+  const keys = ['protocol', 'protokol', 'protocolNo', 'protokolNo', 'dosyaNo', 'dosya_no', 'tc', 'tcNo', 'tc_no', 'id', 'barcode', 'protocol_no'];
   for (const k of keys) {
     if (d[k] !== undefined && d[k] !== null && String(d[k]).trim() !== '') {
       return String(d[k]).trim();
@@ -60,7 +60,7 @@ function extractPhone(d: any): string | null {
 
 function extractOpDate(d: any): string {
   if (!d || typeof d !== 'object') return new Date().toISOString().split('T')[0];
-  const keys = ['op_date', 'opDate', 'date', 'tarih', 'ameliyatTarihi', 'ameliyat_tarihi', 'created_at', 'createdAt', 'time'];
+  const keys = ['op_date', 'opDate', 'date', 'tarih', 'ameliyatTarihi', 'ameliyat_tarihi', 'created_at', 'createdAt', 'time', 'surgery_date'];
   for (const k of keys) {
     if (d[k]) {
       const valStr = String(d[k]).trim();
@@ -97,7 +97,7 @@ function extractSurgeon(d: any): string {
 
 function extractNotes(d: any): string | null {
   if (!d || typeof d !== 'object') return null;
-  const keys = ['notes', 'notlar', 'aciklama', 'diagnose', 'tani', 'tanı', 'op_type', 'ameliyat', 'islem'];
+  const keys = ['notes', 'notlar', 'aciklama', 'diagnose', 'tani', 'tanı', 'op_type', 'ameliyat', 'islem', 'surgery_type', 'description', 'title'];
   for (const k of keys) {
     if (d[k] && String(d[k]).trim() !== '') {
       return String(d[k]).trim();
@@ -116,23 +116,23 @@ function isRoboticProstatectomyCase(d: any): boolean {
   return true;
 }
 
-export async function fetchFromSecondarySupabase(minOpDate?: string | null): Promise<UpcomingOperation[]> {
+export async function fetchFromSecondarySupabase(minOpDate?: string | null): Promise<{ cases: UpcomingOperation[], rawError?: string }> {
   const cases: UpcomingOperation[] = [];
   const cutoffDate = minOpDate || null;
 
-  const possibleTables = [
-    'cases', 'ameliyatlar', 'patients', 'operations', 'surgeries', 
-    'vaka_listesi', 'vakalar', 'urology_cases', 'vakalistesi', 'randevular', 
-    'list', 'events', 'appointments', 'records', 'upcoming_operations'
-  ];
+  const targetTables = ['surgeries', 'cases', 'ameliyatlar', 'patients', 'operations'];
+  let lastError: string | undefined = undefined;
 
-  for (const table of possibleTables) {
+  for (const table of targetTables) {
     try {
       const { data, error } = await secondarySupabase
         .from(table)
         .select('*');
 
-      if (!error && data && Array.isArray(data) && data.length > 0) {
+      if (error) {
+        console.error(`Secondary Supabase query error for table [${table}]:`, error);
+        lastError = error.message;
+      } else if (data && Array.isArray(data) && data.length > 0) {
         data.forEach((item, idx) => {
           if (!isRoboticProstatectomyCase(item)) return;
 
@@ -153,11 +153,12 @@ export async function fetchFromSecondarySupabase(minOpDate?: string | null): Pro
             status: 'SCHEDULED'
           });
         });
+        if (cases.length > 0) break;
       }
-    } catch (err) {
-      // Continue next table
+    } catch (err: any) {
+      lastError = err.message;
     }
   }
 
-  return cases;
+  return { cases, rawError: lastError };
 }
