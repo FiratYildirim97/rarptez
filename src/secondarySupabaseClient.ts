@@ -58,25 +58,35 @@ function extractPhone(d: any): string | null {
   return null;
 }
 
+// Convert any date format (DD.MM.YYYY, DD/MM/YYYY, YYYY-MM-DD, ISO string, etc.) to YYYY-MM-DD
 function extractOpDate(d: any): string {
   if (!d || typeof d !== 'object') return new Date().toISOString().split('T')[0];
+  
   const keys = ['date', 'op_date', 'opDate', 'tarih', 'ameliyatTarihi', 'ameliyat_tarihi', 'created_at', 'createdAt', 'time', 'surgery_date'];
   for (const k of keys) {
     if (d[k]) {
       const valStr = String(d[k]).trim();
+      
+      // If DD.MM.YYYY
       if (valStr.includes('.')) {
         const parts = valStr.split('.');
-        if (parts.length === 3 && parts[2].length === 4) {
-          return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+        if (parts.length === 3) {
+          const year = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
+          return `${year}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
         }
       }
+      
+      // If DD/MM/YYYY
       if (valStr.includes('/')) {
         const parts = valStr.split('/');
-        if (parts.length === 3 && parts[2].length === 4) {
-          return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+        if (parts.length === 3) {
+          const year = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
+          return `${year}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
         }
       }
-      if (valStr.length >= 10) {
+
+      // If YYYY-MM-DD or ISO
+      if (valStr.length >= 10 && valStr.includes('-')) {
         return valStr.substring(0, 10);
       }
     }
@@ -84,7 +94,6 @@ function extractOpDate(d: any): string {
   return new Date().toISOString().split('T')[0];
 }
 
-// Extract surgeon from 'professor' column
 function extractSurgeon(d: any): string {
   if (!d || typeof d !== 'object') return 'FK';
   const keys = ['professor', 'surgeon', 'cerrah', 'doktor', 'doctor', 'op_doctor', 'opDoctor'];
@@ -115,20 +124,29 @@ function extractNotes(d: any): string | null {
   return null;
 }
 
+// Flexible & ultra-tolerant case-insensitive check for robotic prostatectomy keywords
 function isStrictRoboticProstatectomyCase(item: any): boolean {
   if (!item || typeof item !== 'object') return false;
 
-  const opVal = item.operation || item.op_type || item.ameliyat || item.title || item.notes || '';
-  const opText = toTrLowerCase(String(opVal));
+  const rawOp = item.operation || item.op_type || item.ameliyat || item.title || item.notes || '';
+  const opText = toTrLowerCase(String(rawOp));
+
+  // Also search entire JSON string in case operation column is named slightly differently
+  const fullText = toTrLowerCase(JSON.stringify(item));
 
   const strictKeywords = [
     'robot rp',
     'robotik rp',
-    'robotik radikal prostatektomi'
+    'robotik radikal prostatektomi',
+    'prostatektomi',
+    'prostatectomy',
+    'rarp',
+    'radikal prostatektomi'
   ];
 
   for (const kw of strictKeywords) {
-    if (opText.includes(toTrLowerCase(kw))) {
+    const kwLower = toTrLowerCase(kw);
+    if (opText.includes(kwLower) || fullText.includes(kwLower)) {
       return true;
     }
   }
@@ -136,7 +154,7 @@ function isStrictRoboticProstatectomyCase(item: any): boolean {
   return false;
 }
 
-export async function fetchFromSecondarySupabase(minOpDate?: string | null): Promise<{ cases: UpcomingOperation[], rawError?: string, totalFound?: number, sampleItem?: any }> {
+export async function fetchFromSecondarySupabase(minOpDate?: string | null): Promise<{ cases: UpcomingOperation[], rawError?: string, totalFound?: number, sampleItem?: any, debugInfo?: string }> {
   const cases: UpcomingOperation[] = [];
   const cutoffDate = minOpDate || new Date().toISOString().split('T')[0];
 
@@ -151,17 +169,27 @@ export async function fetchFromSecondarySupabase(minOpDate?: string | null): Pro
     }
 
     if (!data || !Array.isArray(data) || data.length === 0) {
-      return { cases: [], totalFound: 0 };
+      return { cases: [], totalFound: 0, debugInfo: "surgeries tablosu tamamen boş döndü." };
     }
 
-    const sampleItem = data[0];
+    let matchedCount = 0;
+    let skippedReason = "";
 
     data.forEach((item, idx) => {
-      if (!isStrictRoboticProstatectomyCase(item)) return;
-
+      const isRobot = isStrictRoboticProstatectomyCase(item);
       const opDate = extractOpDate(item);
-      if (cutoffDate && opDate < cutoffDate) return;
 
+      if (!isRobot) {
+        skippedReason = `[${item.patient_name || item.name || idx}] -> Ameliyat tanımı (${item.operation || item.title}) eşleşmedi.`;
+        return;
+      }
+
+      if (cutoffDate && opDate < cutoffDate) {
+        skippedReason = `[${item.patient_name || item.name || idx}] -> Tarih (${opDate}) bugünden (${cutoffDate}) eski kaldı.`;
+        return;
+      }
+
+      matchedCount++;
       const patientName = extractPatientName(item);
 
       cases.push({
@@ -177,7 +205,12 @@ export async function fetchFromSecondarySupabase(minOpDate?: string | null): Pro
       });
     });
 
-    return { cases, totalFound: data.length, sampleItem };
+    return { 
+      cases, 
+      totalFound: data.length, 
+      sampleItem: data[0],
+      debugInfo: `Okunan Toplam: ${data.length}, Eşleşen: ${matchedCount}. Sonlanan Neden: ${skippedReason}`
+    };
   } catch (err: any) {
     return { cases: [], rawError: err.message };
   }

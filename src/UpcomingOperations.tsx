@@ -76,7 +76,7 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
     setIsSyncing(true);
     setSyncStatusMsg(null);
     try {
-      const { cases: secCases, rawError } = await fetchFromSecondarySupabase(todayStr);
+      const { cases: secCases, rawError, debugInfo } = await fetchFromSecondarySupabase(todayStr);
 
       if (secCases && secCases.length > 0) {
         let addedCount = 0;
@@ -100,7 +100,7 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
       } else if (rawError) {
         setSyncStatusMsg(`⚠️ Bağlantı hatası: ${rawError}`);
       } else {
-        setSyncStatusMsg(`ℹ️ Ameliyat tarihi bugün (${todayStr}) veya sonrası olan uygun robotik vaka bulunamadı.`);
+        setSyncStatusMsg(`ℹ️ ${debugInfo || 'Ameliyat tarihi bugün veya sonrası olan vaka bulunamadı.'}`);
       }
     } catch (err: any) {
       console.error("Sync error:", err);
