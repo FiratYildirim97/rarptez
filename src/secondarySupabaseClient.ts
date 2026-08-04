@@ -58,7 +58,7 @@ function extractPhone(d: any): string | null {
   return null;
 }
 
-// Robust Turkish Date Parser: DD.MM.YYYY or DD/MM/YYYY -> YYYY-MM-DD
+// Ultra-robust date parser: DD.MM.YYYY, DD/MM/YYYY, YYYY-MM-DD
 function extractOpDate(d: any): string {
   if (!d || typeof d !== 'object') return new Date().toISOString().split('T')[0];
   
@@ -128,16 +128,13 @@ function extractNotes(d: any): string | null {
   return null;
 }
 
-// Matches ANY case where the word 'robot' or 'rarp' exists anywhere in the record!
-function containsRobotKeyword(item: any): boolean {
-  if (!item || typeof item !== 'object') return false;
-  const fullText = toTrLowerCase(JSON.stringify(item));
-  return fullText.includes('robot') || fullText.includes('rarp');
-}
-
 export async function fetchFromSecondarySupabase(minOpDate?: string | null): Promise<{ cases: UpcomingOperation[], rawError?: string, totalFound?: number, sampleItem?: any, debugInfo?: string }> {
   const cases: UpcomingOperation[] = [];
-  const cutoffDate = minOpDate || new Date().toISOString().split('T')[0];
+  
+  // Set cutoff date to yesterday (2026-08-04) to prevent timezone edge cases from missing today's surgeries
+  const yesterdayObj = new Date();
+  yesterdayObj.setDate(yesterdayObj.getDate() - 1);
+  const cutoffDate = minOpDate ? minOpDate : yesterdayObj.toISOString().split('T')[0];
 
   try {
     const { data, error } = await secondarySupabase
@@ -156,17 +153,12 @@ export async function fetchFromSecondarySupabase(minOpDate?: string | null): Pro
 
     let matchedCount = 0;
     let skippedOldCount = 0;
-    let skippedNotRobotCount = 0;
 
     data.forEach((item, idx) => {
-      // 1. Matches ANY case containing the word 'robot' or 'rarp'
-      if (!containsRobotKeyword(item)) {
-        skippedNotRobotCount++;
-        return;
-      }
-
-      // 2. Date check (opDate >= cutoffDate)
+      // 1. NO KEYWORD FILTER: Fetch ALL surgeries in the table (no row is dropped due to operation name differences!)
       const opDate = extractOpDate(item);
+
+      // 2. Filter ONLY surgeries where date >= cutoffDate (today & future)
       if (cutoffDate && opDate < cutoffDate) {
         skippedOldCount++;
         return;
@@ -192,7 +184,7 @@ export async function fetchFromSecondarySupabase(minOpDate?: string | null): Pro
       cases, 
       totalFound: data.length, 
       sampleItem: data[0],
-      debugInfo: `Okunan Toplam: ${data.length}, Çekilen Robotik: ${matchedCount} (Geçmiş: ${skippedOldCount}, Robotik Olmayan: ${skippedNotRobotCount}).`
+      debugInfo: `Veritabanında Okunan: ${data.length}, Gelecek Vakalar: ${matchedCount} (Geçmiş: ${skippedOldCount}).`
     };
   } catch (err: any) {
     return { cases: [], rawError: err.message };
