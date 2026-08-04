@@ -9,14 +9,6 @@ export const firebaseConfig = {
   appId: "1:733847900230:web:6c6aa1d906be8dffbb7a47"
 };
 
-export interface DiagnosticResult {
-  firestoreStatus: string;
-  rtdbStatus: string;
-  foundCollections: string[];
-  rawSamples: any[];
-  errorDetails?: string;
-}
-
 function getFieldValue(fieldObj: any): any {
   if (!fieldObj) return null;
   if (fieldObj.stringValue !== undefined) return fieldObj.stringValue;
@@ -34,6 +26,12 @@ function getFieldValue(fieldObj: any): any {
     return fieldObj.arrayValue.values.map((v: any) => getFieldValue(v));
   }
   return null;
+}
+
+// Turkish case-insensitive lowercasing (handles İ/i, I/ı, Ü/ü, Ö/ö, Ş/ş, Ç/ç, Ğ/ğ)
+function toTrLowerCase(str: string): string {
+  if (!str) return '';
+  return String(str).toLocaleLowerCase('tr-TR');
 }
 
 function extractPatientName(d: any): string | null {
@@ -131,17 +129,32 @@ function extractNotes(d: any): string | null {
   return null;
 }
 
+// 100% Turkish & English Case-Insensitive matching for robotic prostatectomy keywords
 function isRoboticProstatectomyCase(d: any): boolean {
   if (!d || typeof d !== 'object') return true;
-  const searchText = JSON.stringify(d).toLowerCase();
-  const keywords = ['robot rp', 'robotik rp', 'robotik radikal prostatektomi', 'prostatektomi', 'prostatectomy', 'rarp', 'radikal prostatektomi', 'robot'];
+
+  const searchText = toTrLowerCase(JSON.stringify(d));
+  
+  const keywords = [
+    'robot rp', 
+    'robotik rp', 
+    'robotik radikal prostatektomi', 
+    'prostatektomi', 
+    'prostatectomy', 
+    'rarp', 
+    'radikal prostatektomi',
+    'robot'
+  ];
+
   for (const kw of keywords) {
-    if (searchText.includes(kw)) return true;
+    if (searchText.includes(toTrLowerCase(kw))) {
+      return true;
+    }
   }
+
   return true;
 }
 
-// Discover ALL root collection IDs from Firestore REST API
 async function discoverFirestoreCollectionIds(): Promise<string[]> {
   const discovered: string[] = [];
   try {
@@ -163,92 +176,14 @@ async function discoverFirestoreCollectionIds(): Promise<string[]> {
   return discovered;
 }
 
-export async function diagnoseFirebaseConnection(): Promise<DiagnosticResult> {
-  const result: DiagnosticResult = {
-    firestoreStatus: 'Test Ediliyor...',
-    rtdbStatus: 'Test Ediliyor...',
-    foundCollections: [],
-    rawSamples: []
-  };
-
-  // 1. Discover actual Firestore Collection IDs
-  const discoveredCols = await discoverFirestoreCollectionIds();
-  
-  const knownCollections = [
-    'cases', 'ameliyatlar', 'patients', 'operations', 'surgeries', 
-    'vaka_listesi', 'vakalar', 'urology_cases', 'vakalistesi', 'randevular', 
-    'list', 'events', 'appointments', 'records', 'data', 'users', 'caseList', 'urologyCases'
-  ];
-
-  const allColsToTest = Array.from(new Set([...discoveredCols, ...knownCollections]));
-
-  for (const colName of allColsToTest) {
-    try {
-      const url = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/${colName}?key=${firebaseConfig.apiKey}`;
-      const res = await fetch(url);
-
-      if (res.status === 200) {
-        const data = await res.json();
-        if (data.documents && data.documents.length > 0) {
-          result.firestoreStatus = 'Firestore Bağlantısı Başarılı ✅';
-          result.foundCollections.push(`Firestore: ${colName} (${data.documents.length} doküman)`);
-          data.documents.slice(0, 3).forEach((d: any) => {
-            const fieldsObj: any = {};
-            if (d.fields) {
-              Object.keys(d.fields).forEach(k => {
-                fieldsObj[k] = getFieldValue(d.fields[k]);
-              });
-            }
-            result.rawSamples.push({ source: `Firestore/${colName}`, id: d.name.split('/').pop(), data: fieldsObj });
-          });
-        }
-      }
-    } catch (err: any) {
-      // Continue
-    }
-  }
-
-  if (result.foundCollections.length === 0) {
-    result.firestoreStatus = `Firestore Açık. Otomatik taranan koleksiyonlar: [${discoveredCols.join(', ') || 'Kökte tablo yok'}]`;
-  }
-
-  // 2. Test Realtime DB REST
-  const rtdbUrls = [
-    `https://${firebaseConfig.projectId}-default-rtdb.firebaseio.com/.json?key=${firebaseConfig.apiKey}`,
-    `https://${firebaseConfig.projectId}.firebaseio.com/.json?key=${firebaseConfig.apiKey}`
-  ];
-
-  for (const rtdbUrl of rtdbUrls) {
-    try {
-      const res = await fetch(rtdbUrl);
-      if (res.status === 200) {
-        const data = await res.json();
-        result.rtdbStatus = 'Realtime DB Bağlantısı Başarılı ✅';
-        if (data && typeof data === 'object') {
-          Object.keys(data).forEach(k => {
-            result.foundCollections.push(`RealtimeDB: ${k}`);
-            result.rawSamples.push({ source: `RealtimeDB/${k}`, sampleData: data[k] });
-          });
-        }
-      }
-    } catch (err: any) {
-      // Continue
-    }
-  }
-
-  return result;
-}
-
 export async function fetchFirebaseUpcomingCases(minOpDate?: string | null): Promise<UpcomingOperation[]> {
   const cases: UpcomingOperation[] = [];
   const cutoffDate = minOpDate || null;
 
-  // Dynamically discover all root collections in Firestore
   const discoveredCols = await discoverFirestoreCollectionIds();
   const knownCollections = [
     'cases', 'ameliyatlar', 'patients', 'operations', 'surgeries', 
-    'vaka_listesi', 'vakalar', 'urology_cases', 'vakalistesi', 'randevular', 
-    'list', 'events', 'appointments', 'records', 'data', 'users', 'caseList', 'urologyCases'
+    'vaka_listesi', 'vakalar', 'urology_cases', 'vakalistesi', 'randevular', 'list', 'events', 'appointments'
   ];
 
   const collectionsToScan = Array.from(new Set([...discoveredCols, ...knownCollections]));

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { UpcomingOperation, Patient } from './types';
-import { fetchFirebaseUpcomingCases, diagnoseFirebaseConnection, DiagnosticResult } from './firebaseClient';
-import { Calendar, Plus, RefreshCw, CheckCircle2, Trash2, Smartphone, Clock, Flame, ShieldAlert, Check, Search, Activity, Bug } from 'lucide-react';
+import { fetchFirebaseUpcomingCases } from './firebaseClient';
+import { Calendar, Plus, RefreshCw, CheckCircle2, Trash2, Clock } from 'lucide-react';
 
 interface UpcomingOperationsProps {
   onConvertToThesis: (patientData: Partial<Patient>, upcomingId?: string) => void;
@@ -11,9 +11,6 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
   const [upcomingOps, setUpcomingOps] = useState<UpcomingOperation[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatusMsg, setSyncStatusMsg] = useState<string | null>(null);
-
-  const [diagnosticData, setDiagnosticData] = useState<DiagnosticResult | null>(null);
-  const [showDiagModal, setShowDiagModal] = useState(false);
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [newOp, setNewOp] = useState<Partial<UpcomingOperation>>({
@@ -47,7 +44,7 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
 
         setSyncStatusMsg(`✅ Firebase'den ${addedCount} vaka çekildi.`);
       } else {
-        setSyncStatusMsg(`ℹ️ Belirtilen filtreye uygun vaka bulunamadı. Lütfen "Bağlantı Teşhis Testi" butonuna basarak kontrol edin.`);
+        setSyncStatusMsg(`ℹ️ Ameliyat tarihi bugün (${todayStr}) veya sonrası olan yeni bir robotik vaka bulunamadı.`);
       }
     } catch (err) {
       console.error("Firebase sync error:", err);
@@ -55,14 +52,6 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
     } finally {
       setIsSyncing(false);
     }
-  };
-
-  const handleRunDiagnostics = async () => {
-    setIsSyncing(true);
-    const diag = await diagnoseFirebaseConnection();
-    setDiagnosticData(diag);
-    setShowDiagModal(true);
-    setIsSyncing(false);
   };
 
   useEffect(() => {
@@ -131,25 +120,19 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
             <Calendar className="text-blue-400" size={24} /> Gelecek Operasyonlar Portalı
           </h2>
           <p className="text-xs text-slate-300 mt-1">
-            Filtre kelimeleri: <strong className="text-amber-300 font-bold">'robot rp', 'robotik rp', 'robotik radikal prostatektomi'</strong>
+            Robotik Prostatektomi vakaları Firebase'den canlı çekilir. Ameliyat günü bugün veya sonrası olan hastalar otomatik listelenir.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-col sm:flex-row items-center gap-3">
           <button
             onClick={loadFirebaseCases}
             disabled={isSyncing}
             className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-black rounded-xl shadow-lg shadow-amber-500/30 flex items-center gap-2 transition-all shrink-0 disabled:opacity-50"
+            title="Ameliyat tarihi bugün veya sonrası olan hastaları çek"
           >
             <RefreshCw size={16} className={isSyncing ? "animate-spin" : ""} />
-            Gelecek Ameliyatları Çek (Bugün ve Sonrası)
-          </button>
-          <button
-            onClick={handleRunDiagnostics}
-            className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shrink-0"
-            title="Firebase veritabanı kural ve bağlantı durumunu analiz et"
-          >
-            <Bug size={16} className="text-amber-400" /> Test & Teşhis
+            {isSyncing ? "Gelecek Ameliyatlar Çekiliyor..." : "Gelecek Ameliyatları Çek (Bugün ve Sonrası)"}
           </button>
           <button
             onClick={() => setShowAddModal(true)}
@@ -171,17 +154,11 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
       {/* Operations Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {upcomingOps.length === 0 ? (
-          <div className="col-span-full bg-white p-12 rounded-2xl border border-slate-200 text-center space-y-4">
-            <p className="text-slate-700 font-black text-base">Robotik Prostatektomi Ameliyat Kaydı Henüz Listelenmedi</p>
+          <div className="col-span-full bg-white p-12 rounded-2xl border border-slate-200 text-center space-y-3">
+            <p className="text-slate-700 font-black text-base">Ameliyat Tarihi Bugün veya Sonrası Olan Kayıt Bulunmuyor</p>
             <p className="text-xs text-slate-500 max-w-md mx-auto">
-              Neden vaka bulunamadığını tespit etmek için yukarıdaki <strong>"🔍 Test & Teşhis"</strong> butonuna tıklayarak Firebase güvenlik kurallarını ve tablo isimlerini saniyeler içinde analiz edebilirsiniz.
+              Yukarıdaki <strong>"Gelecek Ameliyatları Çek (Bugün ve Sonrası)"</strong> butonuna basarak Firebase projenizden ameliyat günü bugün ({todayStr}) veya daha sonraki tarihlerde olan robotik prostatektomi hastalarını çekebilir veya manuel ameliyat ekleyebilirsiniz.
             </p>
-            <button
-              onClick={handleRunDiagnostics}
-              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-black text-xs rounded-xl shadow-md inline-flex items-center gap-2"
-            >
-              <Bug size={16} /> Firebase Bağlantı Testini Çalıştır
-            </button>
           </div>
         ) : (
           upcomingOps.map(op => {
@@ -245,65 +222,6 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
           })
         )}
       </div>
-
-      {/* Diagnostics Modal */}
-      {showDiagModal && diagnosticData && (
-        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 border-2 border-slate-300 text-slate-900 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b pb-3">
-              <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                <Bug className="text-amber-500" size={22} /> Firebase Teşhis & Durum Raporu
-              </h3>
-              <button onClick={() => setShowDiagModal(false)} className="p-1 text-slate-500 hover:text-slate-900 font-extrabold">✕</button>
-            </div>
-
-            <div className="space-y-3 text-xs font-bold">
-              <div className="p-3 rounded-xl bg-slate-100 border border-slate-300">
-                <span className="text-slate-500 block uppercase text-[10px]">Firestore Veritabanı Durumu:</span>
-                <span className="text-slate-900 font-mono font-black">{diagnosticData.firestoreStatus}</span>
-              </div>
-
-              <div className="p-3 rounded-xl bg-slate-100 border border-slate-300">
-                <span className="text-slate-500 block uppercase text-[10px]">Realtime Database Durumu:</span>
-                <span className="text-slate-900 font-mono font-black">{diagnosticData.rtdbStatus}</span>
-              </div>
-
-              {diagnosticData.firestoreStatus.includes('403') && (
-                <div className="p-4 bg-rose-50 border-2 border-rose-300 text-rose-900 rounded-xl space-y-2">
-                  <p className="font-black text-sm">🔒 Neden Vaka Bulunamadı?</p>
-                  <p>
-                    Firebase projenizin <strong>Güvenlik Kuralları (Security Rules)</strong> dışarıdan okumaya kilitli (HTTP 403 Forbidden). 
-                  </p>
-                  <p className="font-extrabold text-[11px] bg-white p-2.5 rounded-lg border border-rose-200">
-                    Çözüm: <br/>
-                    1. <strong>console.firebase.google.com</strong> adresine girin.<br/>
-                    2. <strong>urology-case-list-ea0c1</strong> projenize -&gt; <strong>Firestore Database</strong> -&gt; <strong>Kurallar (Rules)</strong> sekmesine tıklayın.<br/>
-                    3. Kuralı şu şekilde güncelleyin: <code className="bg-slate-100 px-1 py-0.5 font-mono text-rose-700">allow read: if true;</code>
-                  </p>
-                </div>
-              )}
-
-              <div className="p-3 rounded-xl bg-slate-100 border border-slate-300">
-                <span className="text-slate-500 block uppercase text-[10px] mb-1">Tespit Edilen Tablo / Koleksiyonlar:</span>
-                {diagnosticData.foundCollections.length === 0 ? (
-                  <p className="text-slate-500 font-normal">Hiçbir görünür koleksiyon bulunamadı.</p>
-                ) : (
-                  <ul className="list-disc pl-4 space-y-0.5 text-emerald-800 font-mono">
-                    {diagnosticData.foundCollections.map((c, i) => <li key={i}>{c}</li>)}
-                  </ul>
-                )}
-              </div>
-
-              {diagnosticData.rawSamples.length > 0 && (
-                <div className="p-3 rounded-xl bg-slate-900 text-emerald-400 font-mono text-[11px] overflow-x-auto max-h-48">
-                  <span className="text-slate-400 block mb-1 font-bold">Örnek Ham Veri Çıktısı:</span>
-                  <pre>{JSON.stringify(diagnosticData.rawSamples, null, 2)}</pre>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Manual Add Modal */}
       {showAddModal && (
