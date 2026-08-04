@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { UpcomingOperation, Patient } from './types';
 import { fetchFirebaseUpcomingCases } from './firebaseClient';
 import { Calendar, Plus, RefreshCw, CheckCircle2, Trash2, Clock } from 'lucide-react';
@@ -24,6 +24,7 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
 
   const todayStr = new Date().toISOString().split('T')[0];
 
+  // ONLY triggered when the user explicitly clicks the button!
   const loadFirebaseCases = async () => {
     setIsSyncing(true);
     setSyncStatusMsg(null);
@@ -53,10 +54,6 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
       setIsSyncing(false);
     }
   };
-
-  useEffect(() => {
-    loadFirebaseCases();
-  }, []);
 
   const handleAddManual = (e: React.FormEvent) => {
     e.preventDefault();
@@ -120,7 +117,7 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
             <Calendar className="text-blue-400" size={24} /> Gelecek Operasyonlar Portalı
           </h2>
           <p className="text-xs text-slate-300 mt-1">
-            Robotik Prostatektomi vakaları Firebase'den canlı çekilir. Ameliyat günü bugün veya sonrası olan hastalar otomatik listelenir.
+            Çekme işlemi <strong>sadece siz butona bastığınızda</strong> gerçekleşir.
           </p>
         </div>
 
@@ -129,7 +126,7 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
             onClick={loadFirebaseCases}
             disabled={isSyncing}
             className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-black rounded-xl shadow-lg shadow-amber-500/30 flex items-center gap-2 transition-all shrink-0 disabled:opacity-50"
-            title="Ameliyat tarihi bugün veya sonrası olan hastaları çek"
+            title="Sadece siz tıkladığınızda Firebase'den çeker"
           >
             <RefreshCw size={16} className={isSyncing ? "animate-spin" : ""} />
             {isSyncing ? "Gelecek Ameliyatlar Çekiliyor..." : "Gelecek Ameliyatları Çek (Bugün ve Sonrası)"}
