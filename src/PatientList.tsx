@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Patient } from './types';
-import { getWhatsAppLink } from './utils';
-import { Search, Edit, Trash2, UserPlus, Eye, X, MessageSquare } from 'lucide-react';
+import { getWhatsAppBusinessAppScheme, getWhatsAppWebLink } from './utils';
+import { Search, Edit, Trash2, UserPlus, Eye, X, MessageSquare, Smartphone } from 'lucide-react';
 
 interface PatientListProps {
   patients: Patient[];
@@ -115,7 +115,8 @@ export default function PatientList({ patients, onEdit, onDelete, onAddNew }: Pa
                 </tr>
               ) : (
                 filteredPatients.map((p) => {
-                  const waLink = getWhatsAppLink(p.phone, p.patient_name, p.surgeon);
+                  const businessAppScheme = getWhatsAppBusinessAppScheme(p.phone, p.patient_name, p.surgeon);
+                  const webLink = getWhatsAppWebLink(p.phone, p.patient_name, p.surgeon);
 
                   return (
                     <tr key={p.id} className="hover:bg-blue-50/60 transition-colors group border-b border-slate-100">
@@ -140,17 +141,28 @@ export default function PatientList({ patients, onEdit, onDelete, onAddNew }: Pa
                         </span>
                       </td>
                       <td className="px-4 py-3.5">
-                        {p.phone && waLink ? (
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-slate-800">{p.phone}</span>
+                        {p.phone && businessAppScheme && webLink ? (
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="font-mono text-slate-800 mr-1">{p.phone}</span>
+                            
+                            {/* Primary Button: Directly forces WhatsApp Business App on iPhone / Android */}
                             <a
-                              href={waLink}
+                              href={businessAppScheme}
+                              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-black inline-flex items-center gap-1 shadow-sm transition-all"
+                              title="Doğrudan WhatsApp Business uygulamasını açar"
+                            >
+                              <Smartphone size={12} /> WhatsApp Business App
+                            </a>
+
+                            {/* Secondary Button: For Web / PC */}
+                            <a
+                              href={webLink}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-black inline-flex items-center gap-1 shadow-sm transition-all"
-                              title="WhatsApp Business uygulamasında veya Web'de mesajı otomatik doldurarak açar"
+                              className="px-2 py-1 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg text-[10px] font-bold inline-flex items-center gap-1 transition-all"
+                              title="Bilgisayar / Web tarayıcısı için"
                             >
-                              <MessageSquare size={12} /> WhatsApp
+                              <MessageSquare size={11} /> Web
                             </a>
                           </div>
                         ) : (
@@ -237,17 +249,27 @@ export default function PatientList({ patients, onEdit, onDelete, onAddNew }: Pa
                 <p><span className="text-slate-600">Ek Hastalık:</span> {selectedPatient.comorbidity || 'Yok'}</p>
                 <div>
                   <span className="text-slate-600 block mb-1">Telefon / WhatsApp Business:</span>
-                  {selectedPatient.phone && getWhatsAppLink(selectedPatient.phone, selectedPatient.patient_name, selectedPatient.surgeon) ? (
+                  {selectedPatient.phone && getWhatsAppBusinessAppScheme(selectedPatient.phone, selectedPatient.patient_name, selectedPatient.surgeon) ? (
                     <div className="flex flex-col gap-2 items-start mt-1">
                       <span className="font-mono text-slate-900 text-sm">{selectedPatient.phone}</span>
-                      <a
-                        href={getWhatsAppLink(selectedPatient.phone, selectedPatient.patient_name, selectedPatient.surgeon)!}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black inline-flex items-center gap-1.5 shadow-md shadow-emerald-600/30 transition-all"
-                      >
-                        <MessageSquare size={16} /> WhatsApp Business ile Mesaj Gönder
-                      </a>
+                      
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        <a
+                          href={getWhatsAppBusinessAppScheme(selectedPatient.phone, selectedPatient.patient_name, selectedPatient.surgeon)!}
+                          className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black inline-flex items-center gap-1.5 shadow-md shadow-emerald-600/30 transition-all"
+                        >
+                          <Smartphone size={16} /> WhatsApp Business App (Telefon)
+                        </a>
+
+                        <a
+                          href={getWhatsAppWebLink(selectedPatient.phone, selectedPatient.patient_name, selectedPatient.surgeon)!}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-900 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 transition-all"
+                        >
+                          <MessageSquare size={14} /> Web / PC
+                        </a>
+                      </div>
                     </div>
                   ) : (
                     <span>{selectedPatient.phone || '-'}</span>
