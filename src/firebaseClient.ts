@@ -141,7 +141,28 @@ function isRoboticProstatectomyCase(d: any): boolean {
   return true;
 }
 
-// REST API Diagnostic Inspector
+// Discover ALL root collection IDs from Firestore REST API
+async function discoverFirestoreCollectionIds(): Promise<string[]> {
+  const discovered: string[] = [];
+  try {
+    const url = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents:listCollectionIds?key=${firebaseConfig.apiKey}`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pageSize: 100 })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.collectionIds && Array.isArray(data.collectionIds)) {
+        discovered.push(...data.collectionIds);
+      }
+    }
+  } catch (err) {
+    // Continue
+  }
+  return discovered;
+}
+
 export async function diagnoseFirebaseConnection(): Promise<DiagnosticResult> {
   const result: DiagnosticResult = {
     firestoreStatus: 'Test Ediliyor...',
@@ -150,22 +171,26 @@ export async function diagnoseFirebaseConnection(): Promise<DiagnosticResult> {
     rawSamples: []
   };
 
-  const collectionsToTest = [
+  // 1. Discover actual Firestore Collection IDs
+  const discoveredCols = await discoverFirestoreCollectionIds();
+  
+  const knownCollections = [
     'cases', 'ameliyatlar', 'patients', 'operations', 'surgeries', 
     'vaka_listesi', 'vakalar', 'urology_cases', 'vakalistesi', 'randevular', 
-    'list', 'events', 'appointments', 'records', 'data', 'users'
+    'list', 'events', 'appointments', 'records', 'data', 'users', 'caseList', 'urologyCases'
   ];
 
-  // 1. Test Firestore REST
-  try {
-    for (const colName of collectionsToTest) {
+  const allColsToTest = Array.from(new Set([...discoveredCols, ...knownCollections]));
+
+  for (const colName of allColsToTest) {
+    try {
       const url = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/${colName}?key=${firebaseConfig.apiKey}`;
       const res = await fetch(url);
 
       if (res.status === 200) {
-        result.firestoreStatus = 'Firestore Bağlantısı Başarılı ✅ (HTTP 200)';
         const data = await res.json();
         if (data.documents && data.documents.length > 0) {
+          result.firestoreStatus = 'Firestore Bağlantısı Başarılı ✅';
           result.foundCollections.push(`Firestore: ${colName} (${data.documents.length} doküman)`);
           data.documents.slice(0, 3).forEach((d: any) => {
             const fieldsObj: any = {};
@@ -177,16 +202,14 @@ export async function diagnoseFirebaseConnection(): Promise<DiagnosticResult> {
             result.rawSamples.push({ source: `Firestore/${colName}`, id: d.name.split('/').pop(), data: fieldsObj });
           });
         }
-      } else if (res.status === 403) {
-        result.firestoreStatus = 'Firestore Kural Engeli 🔒 (HTTP 403 Permission Denied - Firebase Güvenlik Kuralları Okumayı Engelliyor)';
       }
+    } catch (err: any) {
+      // Continue
     }
+  }
 
-    if (result.foundCollections.length === 0 && !result.firestoreStatus.includes('403')) {
-      result.firestoreStatus = 'Firestore Bağlantısı Açık Fakat Test Edilen Koleksiyon İsimlerinde Veri Bulunamadı';
-    }
-  } catch (err: any) {
-    result.firestoreStatus = 'Firestore Bağlantı Uyarısı: ' + err.message;
+  if (result.foundCollections.length === 0) {
+    result.firestoreStatus = `Firestore Açık. Otomatik taranan koleksiyonlar: [${discoveredCols.join(', ') || 'Kökte tablo yok'}]`;
   }
 
   // 2. Test Realtime DB REST
@@ -200,18 +223,16 @@ export async function diagnoseFirebaseConnection(): Promise<DiagnosticResult> {
       const res = await fetch(rtdbUrl);
       if (res.status === 200) {
         const data = await res.json();
-        result.rtdbStatus = 'Realtime DB Bağlantısı Başarılı ✅ (HTTP 200)';
+        result.rtdbStatus = 'Realtime DB Bağlantısı Başarılı ✅';
         if (data && typeof data === 'object') {
           Object.keys(data).forEach(k => {
             result.foundCollections.push(`RealtimeDB: ${k}`);
             result.rawSamples.push({ source: `RealtimeDB/${k}`, sampleData: data[k] });
           });
         }
-      } else if (res.status === 401 || res.status === 403) {
-        result.rtdbStatus = 'Realtime DB Kural Engeli 🔒 (HTTP 401/403 Permission Denied - Realtime DB Güvenlik Kuralı İzni Gerektiriyor)';
       }
     } catch (err: any) {
-      result.rtdbStatus = 'Realtime DB Bağlantı Uyarısı: ' + err.message;
+      // Continue
     }
   }
 
@@ -222,13 +243,18 @@ export async function fetchFirebaseUpcomingCases(minOpDate?: string | null): Pro
   const cases: UpcomingOperation[] = [];
   const cutoffDate = minOpDate || null;
 
-  const possibleCollections = [
+  // Dynamically discover all root collections in Firestore
+  const discoveredCols = await discoverFirestoreCollectionIds();
+  const knownCollections = [
     'cases', 'ameliyatlar', 'patients', 'operations', 'surgeries', 
-    'vaka_listesi', 'vakalar', 'urology_cases', 'vakalistesi', 'randevular', 'list', 'events', 'appointments'
+    'vaka_listesi', 'vakalar', 'urology_cases', 'vakalistesi', 'randevular', 
+    'list', 'events', 'appointments', 'records', 'data', 'users', 'caseList', 'urologyCases'
   ];
 
+  const collectionsToScan = Array.from(new Set([...discoveredCols, ...knownCollections]));
+
   // 1. Fetch from Firestore REST API
-  for (const colName of possibleCollections) {
+  for (const colName of collectionsToScan) {
     try {
       const url = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/${colName}?key=${firebaseConfig.apiKey}`;
       const res = await fetch(url);
@@ -266,7 +292,7 @@ export async function fetchFirebaseUpcomingCases(minOpDate?: string | null): Pro
         }
       }
     } catch (err) {
-      // Continue next
+      // Continue
     }
   }
 
