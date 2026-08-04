@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { UpcomingOperation, Patient } from './types';
+import { supabase } from './supabaseClient';
 import { fetchFirebaseUpcomingCases } from './firebaseClient';
-import { Calendar, Plus, RefreshCw, CheckCircle2, Trash2, Clock } from 'lucide-react';
+import { Calendar, Plus, RefreshCw, CheckCircle2, Trash2, Clock, Upload, Database, FileSpreadsheet } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 interface UpcomingOperationsProps {
   onConvertToThesis: (patientData: Partial<Patient>, upcomingId?: string) => void;
@@ -24,7 +26,55 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
 
   const todayStr = new Date().toISOString().split('T')[0];
 
-  // ONLY triggered when the user explicitly clicks the button!
+  // 1. Fetch upcoming operations directly from Supabase
+  const loadSupabaseUpcomingCases = async () => {
+    setIsSyncing(true);
+    try {
+      const { data, error } = await supabase
+        .from('upcoming_operations')
+        .select('*')
+        .order('op_date', { ascending: true });
+
+      if (error) {
+        console.error("Supabase fetch error:", error);
+      } else if (data) {
+        const formatted: UpcomingOperation[] = data.map(item => ({
+          id: item.id,
+          patient_name: item.patient_name,
+          protocol: item.protocol,
+          phone: item.phone,
+          op_date: item.op_date,
+          surgeon: item.surgeon || 'FK',
+          notes: item.notes,
+          source: item.source || 'SUPABASE',
+          status: item.status || 'SCHEDULED'
+        }));
+        setUpcomingOps(formatted);
+      }
+    } catch (err) {
+      console.error("Supabase load error:", err);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  useEffect(() => {
+    loadSupabaseUpcomingCases();
+
+    // Supabase Real-time Subscription for instant cross-device updates
+    const channel = supabase
+      .channel('upcoming_operations_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'upcoming_operations' }, () => {
+        loadSupabaseUpcomingCases();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  // 2. Fetch from Firebase and save to Supabase
   const loadFirebaseCases = async () => {
     setIsSyncing(true);
     setSyncStatusMsg(null);
@@ -33,19 +83,25 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
 
       if (fbCases.length > 0) {
         let addedCount = 0;
-        setUpcomingOps(prev => {
-          const existingKeys = new Set(prev.map(p => (p.protocol || p.patient_name).toLowerCase().trim()));
-          const newCases = fbCases.filter(c => {
-            const key = (c.protocol || c.patient_name).toLowerCase().trim();
-            return !existingKeys.has(key);
-          });
-          addedCount = newCases.length;
-          return [...newCases, ...prev];
-        });
 
-        setSyncStatusMsg(`✅ Firebase'den ${addedCount} vaka çekildi.`);
+        for (const fbCase of fbCases) {
+          const { error } = await supabase.from('upcoming_operations').insert([{
+            patient_name: fbCase.patient_name,
+            protocol: fbCase.protocol,
+            phone: fbCase.phone,
+            op_date: fbCase.op_date,
+            surgeon: fbCase.surgeon || 'FK',
+            notes: fbCase.notes,
+            source: 'FIREBASE',
+            status: 'SCHEDULED'
+          }]);
+          if (!error) addedCount++;
+        }
+
+        setSyncStatusMsg(`✅ Firebase'den ${addedCount} yeni vaka Supabase veritabanınıza başarıyla aktarıldı.`);
+        loadSupabaseUpcomingCases();
       } else {
-        setSyncStatusMsg(`ℹ️ Ameliyat tarihi bugün (${todayStr}) veya sonrası olan yeni bir robotik vaka bulunamadı.`);
+        setSyncStatusMsg(`ℹ️ Ameliyat tarihi bugün (${todayStr}) veya sonrası olan yeni bir vaka bulunamadı.`);
       }
     } catch (err) {
       console.error("Firebase sync error:", err);
@@ -55,41 +111,111 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
     }
   };
 
-  const handleAddManual = (e: React.FormEvent) => {
+  // 3. Add manual operation to Supabase
+  const handleAddManual = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newOp.patient_name || !newOp.op_date) return;
 
-    const op: UpcomingOperation = {
-      id: 'op-' + Date.now(),
+    const { data, error } = await supabase.from('upcoming_operations').insert([{
       patient_name: newOp.patient_name,
       protocol: newOp.protocol || '',
       phone: newOp.phone || '',
       op_date: newOp.op_date,
       surgeon: newOp.surgeon || 'FK',
       notes: newOp.notes || '',
-      source: 'MANUAL',
+      source: 'SUPABASE',
       status: 'SCHEDULED'
-    };
+    }]).select();
 
-    setUpcomingOps(prev => [op, ...prev]);
-    setShowAddModal(false);
-    setNewOp({
-      patient_name: '',
-      protocol: '',
-      phone: '',
-      op_date: new Date().toISOString().split('T')[0],
-      surgeon: 'FK',
-      notes: ''
-    });
-  };
-
-  const handleDelete = (id: string) => {
-    if (confirm("Bu ameliyat kaydını silmek istediğinize emin misiniz?")) {
-      setUpcomingOps(prev => prev.filter(o => o.id !== id));
+    if (error) {
+      alert("Hata oluştu: " + error.message);
+    } else {
+      setShowAddModal(false);
+      setNewOp({
+        patient_name: '',
+        protocol: '',
+        phone: '',
+        op_date: new Date().toISOString().split('T')[0],
+        surgeon: 'FK',
+        notes: ''
+      });
+      loadSupabaseUpcomingCases();
     }
   };
 
-  const handleCompleteSurgery = (op: UpcomingOperation) => {
+  // 4. Excel / CSV File Upload directly into Supabase
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsSyncing(true);
+    setSyncStatusMsg("Excel/CSV dosyası işleniyor...");
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsName = wb.SheetNames[0];
+        const ws = wb.Sheets[wsName];
+        const rows: any[] = XLSX.utils.sheet_to_json(ws);
+
+        if (rows.length === 0) {
+          setSyncStatusMsg("⚠️ Yüklenen dosyada veri bulunamadı.");
+          setIsSyncing(false);
+          return;
+        }
+
+        let importedCount = 0;
+        const toInsert: any[] = [];
+
+        rows.forEach(r => {
+          const name = r.Hasta || r.hasta || r.ad_soyad || r.patient_name || r.name || r['Hasta Adı'] || r['Ad Soyad'];
+          if (name) {
+            toInsert.push({
+              patient_name: String(name).trim(),
+              protocol: r.Protokol || r.protokol || r.protocol || r['Protokol No'] || '',
+              phone: r.Telefon || r.telefon || r.phone || r.tel || '',
+              op_date: r.Tarih || r.tarih || r.op_date || r.date || todayStr,
+              surgeon: r.Cerrah || r.cerrah || r.surgeon || 'FK',
+              notes: r.Notlar || r.notlar || r.notes || r.Ameliyat || r['Ameliyat Türü'] || '',
+              source: 'EXCEL_IMPORT',
+              status: 'SCHEDULED'
+            });
+          }
+        });
+
+        if (toInsert.length > 0) {
+          const { error } = await supabase.from('upcoming_operations').insert(toInsert);
+          if (!error) {
+            importedCount = toInsert.length;
+            setSyncStatusMsg(`✅ Excel'den ${importedCount} ameliyat kaydı Supabase'e yüklendi.`);
+            loadSupabaseUpcomingCases();
+          } else {
+            setSyncStatusMsg("⚠️ Yükleme hatası: " + error.message);
+          }
+        }
+      } catch (err: any) {
+        setSyncStatusMsg("⚠️ Dosya okuma hatası: " + err.message);
+      } finally {
+        setIsSyncing(false);
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  // 5. Delete operation from Supabase
+  const handleDelete = async (id: string) => {
+    if (confirm("Bu ameliyat kaydını silmek istediğinize emin misiniz?")) {
+      const { error } = await supabase.from('upcoming_operations').delete().eq('id', id);
+      if (!error) {
+        setUpcomingOps(prev => prev.filter(o => o.id !== id));
+      }
+    }
+  };
+
+  // 6. Complete surgery -> Delete from upcoming_operations & Move to Thesis Patients table
+  const handleCompleteSurgery = async (op: UpcomingOperation) => {
     const patientData: Partial<Patient> = {
       patient_name: op.patient_name,
       protocol: op.protocol,
@@ -98,7 +224,11 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
       op_date: op.op_date,
     };
 
+    // Remove from upcoming_operations in Supabase
+    await supabase.from('upcoming_operations').delete().eq('id', op.id);
     setUpcomingOps(prev => prev.filter(o => o.id !== op.id));
+
+    // Open conversion modal to assign HOOD / STANDART technique
     onConvertToThesis(patientData, op.id);
   };
 
@@ -108,29 +238,35 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
       <div className="bg-gradient-to-r from-slate-900 to-blue-950 text-white p-6 rounded-2xl shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="bg-orange-500 text-white text-[10px] font-black uppercase px-3 py-1 rounded-md tracking-wider flex items-center gap-1">
-              🔥 Live Firebase Connected
+            <span className="bg-emerald-500 text-white text-[10px] font-black uppercase px-3 py-1 rounded-md tracking-wider flex items-center gap-1">
+              <Database size={12} /> Supabase Live Cloud Connected
             </span>
-            <span className="text-[10px] text-slate-300 font-mono">urology-case-list-ea0c1</span>
+            <span className="text-[10px] text-slate-300 font-mono">jiaqclevxzlqcsuyyuzr</span>
           </div>
           <h2 className="text-xl font-black mt-2 flex items-center gap-2">
             <Calendar className="text-blue-400" size={24} /> Gelecek Operasyonlar Portalı
           </h2>
           <p className="text-xs text-slate-300 mt-1">
-            Çekme işlemi <strong>sadece siz butona bastığınızda</strong> gerçekleşir.
+            Gelecek ameliyat kayıtlarınız <strong>Supabase bulutunda</strong> sınırsız ve kesintisiz saklanır.
           </p>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-lg shadow-emerald-600/30 flex items-center gap-2 cursor-pointer transition-all shrink-0">
+            <FileSpreadsheet size={16} /> Excel / CSV Yükle
+            <input type="file" accept=".xlsx, .xls, .csv" onChange={handleFileUpload} className="hidden" />
+          </label>
+
           <button
             onClick={loadFirebaseCases}
             disabled={isSyncing}
-            className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-black rounded-xl shadow-lg shadow-amber-500/30 flex items-center gap-2 transition-all shrink-0 disabled:opacity-50"
-            title="Sadece siz tıkladığınızda Firebase'den çeker"
+            className="px-3.5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl shadow-lg shadow-amber-500/20 flex items-center gap-1.5 transition-all shrink-0 disabled:opacity-50"
+            title="Firebase'den Supabase veritabanınıza çeker"
           >
-            <RefreshCw size={16} className={isSyncing ? "animate-spin" : ""} />
-            {isSyncing ? "Gelecek Ameliyatlar Çekiliyor..." : "Gelecek Ameliyatları Çek (Bugün ve Sonrası)"}
+            <RefreshCw size={15} className={isSyncing ? "animate-spin" : ""} />
+            {isSyncing ? "Çekiliyor..." : "Firebase'den Çek"}
           </button>
+
           <button
             onClick={() => setShowAddModal(true)}
             className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black rounded-xl shadow-lg shadow-blue-600/30 flex items-center gap-2 transition-all shrink-0"
@@ -151,10 +287,10 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
       {/* Operations Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {upcomingOps.length === 0 ? (
-          <div className="col-span-full bg-white p-12 rounded-2xl border border-slate-200 text-center space-y-3">
-            <p className="text-slate-700 font-black text-base">Ameliyat Tarihi Bugün veya Sonrası Olan Kayıt Bulunmuyor</p>
+          <div className="col-span-full bg-white p-12 rounded-2xl border border-slate-200 text-center space-y-4">
+            <p className="text-slate-700 font-black text-base">Henüz Gelecek Ameliyat Kaydı Bulunmuyor</p>
             <p className="text-xs text-slate-500 max-w-md mx-auto">
-              Yukarıdaki <strong>"Gelecek Ameliyatları Çek (Bugün ve Sonrası)"</strong> butonuna basarak Firebase projenizden ameliyat günü bugün ({todayStr}) veya daha sonraki tarihlerde olan robotik prostatektomi hastalarını çekebilir veya manuel ameliyat ekleyebilirsiniz.
+              Yukarıdaki <strong>"📥 Excel / CSV Yükle"</strong> butonuna basarak bilgisayarınızdaki ameliyat listesini yükleyebilir veya <strong>"+ Ameliyat Ekle"</strong> butonundan ekleyebilirsiniz.
             </p>
           </div>
         ) : (
@@ -168,9 +304,11 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
                 <div>
                   <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-3">
                     <span className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase ${
-                      op.source === 'FIREBASE' ? 'bg-orange-100 text-orange-900 border border-orange-200' : 'bg-blue-100 text-blue-900 border border-blue-200'
+                      op.source === 'FIREBASE' ? 'bg-orange-100 text-orange-900 border border-orange-200' :
+                      op.source === 'EXCEL_IMPORT' ? 'bg-emerald-100 text-emerald-900 border border-emerald-200' :
+                      'bg-blue-100 text-blue-900 border border-blue-200'
                     }`}>
-                      {op.source === 'FIREBASE' ? '🔥 Firebase Canlı' : '📝 Manuel Kayıt'}
+                      {op.source === 'FIREBASE' ? '🔥 Firebase' : op.source === 'EXCEL_IMPORT' ? '📊 Excel Kaydı' : '⚡ Supabase Bulut'}
                     </span>
                     <span className="text-xs font-mono font-extrabold text-slate-700">
                       Cerrah: {op.surgeon || 'FK'}
@@ -224,7 +362,7 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
       {showAddModal && (
         <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-md flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 border-2 border-slate-300">
-            <h3 className="text-lg font-black text-slate-900">Yeni Gelecek Operasyon Ekle</h3>
+            <h3 className="text-lg font-black text-slate-900">Yeni Gelecek Operasyon Ekle (Supabase)</h3>
             <form onSubmit={handleAddManual} className="space-y-3 text-xs font-bold">
               <div>
                 <label className="block text-slate-700 mb-1">Hasta Adı Soyadı *</label>
