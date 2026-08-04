@@ -6,9 +6,18 @@ export const SECONDARY_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9
 
 export const secondarySupabase = createClient(SECONDARY_SUPABASE_URL, SECONDARY_SUPABASE_ANON_KEY);
 
+// Bulletproof Turkish Lowercaser (converts uppercase İ/I/Ğ/Ü/Ş/Ö/Ç reliably)
 function toTrLowerCase(str: string): string {
   if (!str) return '';
-  return String(str).toLocaleLowerCase('tr-TR');
+  const s = String(str)
+    .replace(/İ/g, 'i')
+    .replace(/I/g, 'ı')
+    .replace(/Ğ/g, 'ğ')
+    .replace(/Ü/g, 'ü')
+    .replace(/Ş/g, 'ş')
+    .replace(/Ö/g, 'ö')
+    .replace(/Ç/g, 'ç');
+  return s.toLowerCase();
 }
 
 function extractPatientName(d: any): string | null {
@@ -58,7 +67,6 @@ function extractPhone(d: any): string | null {
   return null;
 }
 
-// Ultra-robust date parser: DD.MM.YYYY, DD/MM/YYYY, YYYY-MM-DD
 function extractOpDate(d: any): string {
   if (!d || typeof d !== 'object') return new Date().toISOString().split('T')[0];
   
@@ -67,7 +75,6 @@ function extractOpDate(d: any): string {
     if (d[k]) {
       const valStr = String(d[k]).trim();
       
-      // If DD.MM.YYYY or DD.MM.YY
       if (valStr.includes('.')) {
         const parts = valStr.split('.');
         if (parts.length === 3) {
@@ -78,7 +85,6 @@ function extractOpDate(d: any): string {
         }
       }
       
-      // If DD/MM/YYYY or DD/MM/YY
       if (valStr.includes('/')) {
         const parts = valStr.split('/');
         if (parts.length === 3) {
@@ -89,7 +95,6 @@ function extractOpDate(d: any): string {
         }
       }
 
-      // If YYYY-MM-DD or ISO
       if (valStr.length >= 10 && valStr.includes('-')) {
         return valStr.substring(0, 10);
       }
@@ -128,10 +133,20 @@ function extractNotes(d: any): string | null {
   return null;
 }
 
+// STRICT CHECK: ONLY cases containing the word 'robot' anywhere in operation or record
+function containsRobotKeyword(item: any): boolean {
+  if (!item || typeof item !== 'object') return false;
+  const rawOp = item.operation || item.op_type || item.ameliyat || item.title || item.notes || '';
+  const fullText = JSON.stringify(item);
+  const text1 = toTrLowerCase(String(rawOp));
+  const text2 = toTrLowerCase(fullText);
+
+  return text1.includes('robot') || text2.includes('robot');
+}
+
 export async function fetchFromSecondarySupabase(minOpDate?: string | null): Promise<{ cases: UpcomingOperation[], rawError?: string, totalFound?: number, sampleItem?: any, debugInfo?: string }> {
   const cases: UpcomingOperation[] = [];
   
-  // Set cutoff date to yesterday (2026-08-04) to prevent timezone edge cases from missing today's surgeries
   const yesterdayObj = new Date();
   yesterdayObj.setDate(yesterdayObj.getDate() - 1);
   const cutoffDate = minOpDate ? minOpDate : yesterdayObj.toISOString().split('T')[0];
@@ -153,12 +168,17 @@ export async function fetchFromSecondarySupabase(minOpDate?: string | null): Pro
 
     let matchedCount = 0;
     let skippedOldCount = 0;
+    let skippedNotRobotCount = 0;
 
     data.forEach((item, idx) => {
-      // 1. NO KEYWORD FILTER: Fetch ALL surgeries in the table (no row is dropped due to operation name differences!)
-      const opDate = extractOpDate(item);
+      // 1. STRICT: Only cases containing 'robot'
+      if (!containsRobotKeyword(item)) {
+        skippedNotRobotCount++;
+        return;
+      }
 
-      // 2. Filter ONLY surgeries where date >= cutoffDate (today & future)
+      // 2. Date >= cutoffDate (today & future)
+      const opDate = extractOpDate(item);
       if (cutoffDate && opDate < cutoffDate) {
         skippedOldCount++;
         return;
@@ -184,7 +204,7 @@ export async function fetchFromSecondarySupabase(minOpDate?: string | null): Pro
       cases, 
       totalFound: data.length, 
       sampleItem: data[0],
-      debugInfo: `Veritabanında Okunan: ${data.length}, Gelecek Vakalar: ${matchedCount} (Geçmiş: ${skippedOldCount}).`
+      debugInfo: `Veritabanında Okunan: ${data.length}, Çekilen Robotik Vaka: ${matchedCount} (${skippedOldCount} geçmiş tarihli, ${skippedNotRobotCount} robotik olmayan elendi).`
     };
   } catch (err: any) {
     return { cases: [], rawError: err.message };
