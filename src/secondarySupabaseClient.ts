@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { UpcomingOperation } from './types';
 
 export const SECONDARY_SUPABASE_URL = 'https://nrmjqjmyyzkzcskdldph.supabase.co';
-export const SECONDARY_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ybWpxam15eXpremNza2RsZHBoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU4NzUzMzMsImV4cCI6MjEwMTQ1MTMzM30.LaaPffBhRt5TwRn-Adzf8R5YtAdhI8Wf5ykYsdm0byk';
+export const SECONDARY_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ybWpxam15eXpremNza2RsZHBoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU4NzUzMzMsImV4cCI6MjEwMTQ1MTMzM30.LaaPffBhRt5TwRn-Adzf8R5YtAbhI8Wf5ykYsdm0byk';
 
 export const secondarySupabase = createClient(SECONDARY_SUPABASE_URL, SECONDARY_SUPABASE_ANON_KEY);
 
