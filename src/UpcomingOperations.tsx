@@ -71,17 +71,34 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
     };
   }, []);
 
-  // Fetch from Secondary Supabase Project (surgeries table)
+  // Fetch from Secondary Supabase Project (surgeries table) - with deduplication
   const loadSecondarySupabaseCases = async () => {
     setIsSyncing(true);
     setSyncStatusMsg(null);
     try {
-      const { cases: secCases, rawError, debugInfo } = await fetchFromSecondarySupabase(todayStr);
+      // Load existing upcoming_operations to check for duplicates
+      const { data: existing } = await supabase
+        .from('upcoming_operations')
+        .select('protocol, patient_name, op_date');
+
+      const existingKeys = new Set(
+        (existing || []).map((e: any) =>
+          `${(e.protocol || '').trim()}_${(e.patient_name || '').trim()}_${(e.op_date || '').trim()}`
+        )
+      );
+
+      const { cases: secCases, rawError } = await fetchFromSecondarySupabase(todayStr);
 
       if (secCases && secCases.length > 0) {
         let addedCount = 0;
+        let skippedCount = 0;
 
         for (const secCase of secCases) {
+          const key = `${(secCase.protocol || '').trim()}_${(secCase.patient_name || '').trim()}_${(secCase.op_date || '').trim()}`;
+          if (existingKeys.has(key)) {
+            skippedCount++;
+            continue; // Already in list, skip!
+          }
           const { error } = await supabase.from('upcoming_operations').insert([{
             patient_name: secCase.patient_name,
             protocol: secCase.protocol,
@@ -95,12 +112,12 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
           if (!error) addedCount++;
         }
 
-        setSyncStatusMsg(`✅ ${addedCount} yeni vaka başarıyla aktarıldı. (${debugInfo || ''})`);
+        setSyncStatusMsg(`✅ ${addedCount} yeni vaka eklendi${skippedCount > 0 ? `, ${skippedCount} zaten listede olan atlandı` : ''}.`);
         loadSupabaseUpcomingCases();
       } else if (rawError) {
         setSyncStatusMsg(`⚠️ Bağlantı hatası: ${rawError}`);
       } else {
-        setSyncStatusMsg(`ℹ️ ${debugInfo || 'Vaka bulunamadı.'}`);
+        setSyncStatusMsg(`ℹ️ Bugün veya sonrasına ait yeni robotik vaka bulunamadı.`);
       }
     } catch (err: any) {
       console.error("Sync error:", err);
@@ -195,11 +212,15 @@ export default function UpcomingOperations({ onConvertToThesis }: UpcomingOperat
         </div>
       </div>
 
-      {/* Sync Notification Banner */}
+      {/* Sync Notification Banner - simple, no debug info */}
       {syncStatusMsg && (
-        <div className="p-4 bg-emerald-50 border-2 border-emerald-300 text-emerald-900 rounded-xl text-xs font-black flex items-center justify-between shadow-sm">
+        <div className={`p-3 rounded-xl text-xs font-bold flex items-center justify-between shadow-sm border ${
+          syncStatusMsg.startsWith('✅') ? 'bg-emerald-50 border-emerald-300 text-emerald-900' :
+          syncStatusMsg.startsWith('⚠️') ? 'bg-rose-50 border-rose-300 text-rose-900' :
+          'bg-blue-50 border-blue-200 text-blue-900'
+        }`}>
           <span>{syncStatusMsg}</span>
-          <button onClick={() => setSyncStatusMsg(null)} className="text-emerald-700 hover:text-emerald-900 font-extrabold">✕</button>
+          <button onClick={() => setSyncStatusMsg(null)} className="ml-4 opacity-60 hover:opacity-100 font-extrabold">✕</button>
         </div>
       )}
 
