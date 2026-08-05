@@ -68,10 +68,9 @@ export function getMessageText(patientName?: string, surgeon?: string | null): s
   return `Merhaba Sayın ${pName}, ben Ege Üniversitesi Üroloji Anabilim Dalı'ndan ${doctorTitle}. Ameliyatınız sonrası kontrol ve takip durumunuz hakkında bilgi almak için iletişime geçiyorum. Müsait olduğunuzda dönüş yapabilirseniz sevinirim.`;
 }
 
-// Meta Official Universal WhatsApp Link (wa.me) - Automatically opens WhatsApp / WhatsApp Business on mobile & web with prefilled message
+// Meta Official Universal WhatsApp Link (wa.me) - Opens WhatsApp / WhatsApp Business directly, no pre-filled message
 export function getWhatsAppLink(phone: string | null | undefined, patientName?: string, surgeon?: string | null): string | null {
   const digits = formatPhoneNumber(phone);
   if (!digits) return null;
-  const msg = encodeURIComponent(getMessageText(patientName, surgeon));
-  return `https://wa.me/${digits}?text=${msg}`;
+  return `https://wa.me/${digits}`;
 }
