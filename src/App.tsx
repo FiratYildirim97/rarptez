@@ -386,7 +386,7 @@ export default function App() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
               >
-                <RemindersPanel patients={patients} />
+                <RemindersPanel patients={patients} onPatientUpdated={fetchPatients} />
               </motion.div>
             )}
 
