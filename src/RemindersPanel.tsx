@@ -118,10 +118,10 @@ export default function RemindersPanel({ patients, onPatientUpdated }: Reminders
     const p = reminder.patient;
     const period = reminder.period;
     if (period === '1m') {
-      // 1. ay: patoloji + PSA kontrolü
+      // 1. ay: patoloji + lenf nodu + cerrahi sınır
       setControlForm({
         ipss: String(p.pathology ?? ''),
-        ieef: String(p.postop_psa ?? ''),
+        ieef: String(p.lymph_node_postop ?? ''),
         iciqsf: String(p.surgical_margin ?? '')
       });
     } else {
@@ -144,9 +144,9 @@ export default function RemindersPanel({ patients, onPatientUpdated }: Reminders
     const updates: Partial<Patient> = {};
 
     if (period === '1m') {
-      // 1. ay: patoloji + PSA + cerrahi sınır
+      // 1. ay: patoloji + lenf nodu + cerrahi sınır
       if (controlForm.ipss !== '') updates.pathology = controlForm.ipss as any;
-      if (controlForm.ieef !== '') updates.postop_psa = Number(controlForm.ieef) as any;
+      if (controlForm.ieef !== '') updates.lymph_node_postop = controlForm.ieef as any;
       if (controlForm.iciqsf !== '') updates.surgical_margin = controlForm.iciqsf as any;
     } else {
       if (controlForm.ipss !== '') updates[`ipss_${period}` as keyof Patient] = Number(controlForm.ipss) as any;
@@ -371,7 +371,7 @@ export default function RemindersPanel({ patients, onPatientUpdated }: Reminders
                                 {r.period === '1m' ? (
                                   <>
                                     <p><span className="text-blue-600">Patoloji:</span> <strong>{r.patient.pathology || <span className="text-rose-500">Girilmemiş</span>}</strong></p>
-                                    <p><span className="text-blue-600">Postop PSA:</span> <strong>{r.patient.postop_psa ?? <span className="text-rose-500">Girilmemiş</span>}</strong></p>
+                                    <p><span className="text-blue-600">Lenf Nodu:</span> <strong>{r.patient.lymph_node_postop || <span className="text-rose-500">Girilmemiş</span>}</strong></p>
                                     <p><span className="text-blue-600">Cerrahi Sınır:</span> <strong>{r.patient.surgical_margin || <span className="text-rose-500">Girilmemiş</span>}</strong></p>
                                   </>
                                 ) : (
@@ -430,11 +430,10 @@ export default function RemindersPanel({ patients, onPatientUpdated }: Reminders
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-extrabold text-slate-700 mb-1">Postop PSA (ng/mL)</label>
+                    <label className="block text-xs font-extrabold text-slate-700 mb-1">Lenf Nodu Durumu</label>
                     <input
-                      type="number"
-                      step="0.001"
-                      placeholder="Örn: 0.01"
+                      type="text"
+                      placeholder="Malign/Toplam (örn: 0/12)"
                       value={controlForm.ieef}
                       onChange={e => setControlForm(f => ({ ...f, ieef: e.target.value }))}
                       className="w-full px-3 py-2.5 border-2 border-slate-300 rounded-xl text-sm font-bold focus:border-blue-600 focus:outline-none"
