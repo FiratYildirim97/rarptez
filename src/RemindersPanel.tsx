@@ -48,13 +48,13 @@ export default function RemindersPanel({ patients, onPatientUpdated }: Reminders
       const diffTime = Math.abs(now.getTime() - opDate.getTime());
       const daysPassed = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-      // 1. Ay Patoloji Kontrolü (15-75 gün)
+      // Postoperatif Kontroller (15-75 gün)
       if (daysPassed >= 15 && daysPassed <= 75) {
         const hasPathology = Boolean(p.pathology && p.pathology.trim() !== '');
         items.push({
           patient: p,
           period: '1m',
-          periodLabel: '1. Ay Patoloji Kontrolü',
+          periodLabel: 'Postoperatif Kontroller',
           daysPassed,
           status: hasPathology ? 'DONE' : (daysPassed > 45 ? 'OVERDUE' : 'DUE')
         });
@@ -215,7 +215,7 @@ export default function RemindersPanel({ patients, onPatientUpdated }: Reminders
         <div className="flex flex-wrap items-center gap-2">
           {[
             { key: 'ALL', label: `Tüm Takip Dönemleri (${reminders.length})`, color: 'bg-slate-900' },
-            { key: '1m', label: '1. Ay Patoloji Kontrolü', color: 'bg-purple-600', icon: <Microscope size={14} /> },
+            { key: '1m', label: 'Postoperatif Kontroller', color: 'bg-purple-600', icon: <Microscope size={14} /> },
             { key: '3m', label: '3. Ay Kontrolü', color: 'bg-blue-600' },
             { key: '6m', label: '6. Ay Kontrolü', color: 'bg-blue-600' },
             { key: '12m', label: '12. Ay Kontrolü', color: 'bg-blue-600' },
