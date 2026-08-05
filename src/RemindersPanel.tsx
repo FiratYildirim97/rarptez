@@ -100,6 +100,7 @@ export default function RemindersPanel({ patients, onPatientUpdated }: Reminders
   const reminders = getReminders();
 
   const filteredReminders = reminders.filter(r => {
+    if (r.status === 'DONE') return false; // Tamamlananları gösterme
     const matchesPeriod = selectedPeriod === 'ALL' || r.period === selectedPeriod;
     const term = searchTerm.toLowerCase();
     const matchesSearch =
