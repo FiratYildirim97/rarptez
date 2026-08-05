@@ -139,7 +139,7 @@ export default function PatientReport({ patient, onClose }: PatientReportProps) 
                 <th className="py-2 text-left px-2">Takip Dönemi</th>
                 <th className="py-2">IPSS Skoru (0-35)</th>
                 <th className="py-2">IEEF-5 Skoru (1-25)</th>
-                <th className="py-2">İnkontinans / Ped Kullanımı</th>
+                <th className="py-2">ICIQ-SF</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 font-bold">
@@ -147,7 +147,7 @@ export default function PatientReport({ patient, onClose }: PatientReportProps) 
                 <td className="py-2 text-left px-2 font-black text-slate-900">Preoperatif (Bazal)</td>
                 <td className="py-2">{patient.ipss_preop ?? '-'}</td>
                 <td className="py-2">{patient.iief_preop ?? '-'}</td>
-                <td className="py-2">Tam Kontinans (0 Ped)</td>
+                <td className="py-2">-</td>
               </tr>
               <tr>
                 <td className="py-2 text-left px-2 font-black text-slate-900">1. Ay Kontrolü</td>

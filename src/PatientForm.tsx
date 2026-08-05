@@ -470,7 +470,7 @@ export default function PatientForm({ initialData, onSave, onCancel }: PatientFo
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-extrabold text-slate-900 mb-1">İnkontinans (Kaç Ped?)</label>
+                  <label className="block text-xs font-extrabold text-slate-900 mb-1">ICIQ-SF</label>
                   <input
                     type="text"
                     placeholder="Örn: 0, 1 ped"
@@ -507,7 +507,7 @@ export default function PatientForm({ initialData, onSave, onCancel }: PatientFo
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-extrabold text-slate-900 mb-1">İnkontinans (Kaç Ped?)</label>
+                  <label className="block text-xs font-extrabold text-slate-900 mb-1">ICIQ-SF</label>
                   <input
                     type="text"
                     placeholder="Örn: 0"
@@ -544,7 +544,7 @@ export default function PatientForm({ initialData, onSave, onCancel }: PatientFo
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-extrabold text-slate-900 mb-1">İnkontinans (Kaç Ped?)</label>
+                  <label className="block text-xs font-extrabold text-slate-900 mb-1">ICIQ-SF</label>
                   <input
                     type="text"
                     placeholder="Örn: 0"
@@ -581,7 +581,7 @@ export default function PatientForm({ initialData, onSave, onCancel }: PatientFo
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-extrabold text-slate-900 mb-1">İnkontinans (Kaç Ped?)</label>
+                  <label className="block text-xs font-extrabold text-slate-900 mb-1">ICIQ-SF</label>
                   <input
                     type="text"
                     placeholder="Örn: 0"

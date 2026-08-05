@@ -29,10 +29,10 @@ export function exportToExcel(patients: Patient[]) {
       "PSA", "", "PROSTAT VOLÜMÜ", "", "PIRADS SKORU", "", "BİYOPSİ ISUP GRADE", "", "D'AMICO", "", "IEEF-5", "", "IPSS", "",
       "KONSOL SÜRESİ", "", "KAN KAYBI", "", "TRASNFÜZYON İHTİYACI", "", "LENF NODU DİSEKSİYONU", "",
       "PATOLOJİ", "", "CERRAHİ SINIR", "", "LENF NODU", "", "POSTOP PSA", "", "ADJUVAN TEDAVİ?", "",
-      "IPSS", "", "IEEF-5", "", "İNKONTİNANS (KAÇ PED?)", "",
-      "IPSS", "", "IEEF-5", "", "İNKONTİNANS (KAÇ PED?)", "",
-      "IPSS", "", "IEEF-5", "", "İNKONTİNANS (KAÇ PED?)", "",
-      "IPSS", "", "IEEF-5", "", "İNKONTİNANS (KAÇ PED?)"
+      "IPSS", "", "IEEF-5", "", "ICIQ-SF", "",
+      "IPSS", "", "IEEF-5", "", "ICIQ-SF", "",
+      "IPSS", "", "IEEF-5", "", "ICIQ-SF", "",
+      "IPSS", "", "IEEF-5", "", "ICIQ-SF"
     ];
 
     sheetData.push(row1);
