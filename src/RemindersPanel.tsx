@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Patient } from './types';
 import { getWhatsAppLink } from './utils';
 import { supabase } from './supabaseClient';
-import { Bell, AlertCircle, CheckCircle, Clock, Search, Microscope, MessageSquare, PlusCircle, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { Bell, AlertCircle, Clock, Search, Microscope, MessageSquare, PlusCircle, ChevronDown, ChevronUp, X } from 'lucide-react';
 
 interface RemindersPanelProps {
   patients: Patient[];
@@ -113,7 +113,6 @@ export default function RemindersPanel({ patients, onPatientUpdated }: Reminders
 
   const dueCount = reminders.filter(r => r.status === 'DUE').length;
   const overdueCount = reminders.filter(r => r.status === 'OVERDUE').length;
-  const doneCount = reminders.filter(r => r.status === 'DONE').length;
 
   const openControlModal = (reminder: ReminderItem) => {
     const p = reminder.patient;
@@ -179,7 +178,7 @@ export default function RemindersPanel({ patients, onPatientUpdated }: Reminders
   return (
     <div className="space-y-6 text-slate-900">
       {/* Header Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-amber-500 text-white p-6 rounded-2xl shadow-xl flex items-center justify-between">
           <div>
             <p className="text-xs font-black uppercase tracking-wider text-amber-100">Kontrol / Patoloji Zamanı Geldi</p>
@@ -197,16 +196,6 @@ export default function RemindersPanel({ patients, onPatientUpdated }: Reminders
           </div>
           <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
             <AlertCircle size={26} />
-          </div>
-        </div>
-
-        <div className="bg-emerald-600 text-white p-6 rounded-2xl shadow-xl flex items-center justify-between">
-          <div>
-            <p className="text-xs font-black uppercase tracking-wider text-emerald-100">Tamamlanan Patoloji & Kontroller</p>
-            <h3 className="text-3xl font-black mt-1">{doneCount} Hasta</h3>
-          </div>
-          <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
-            <CheckCircle size={26} />
           </div>
         </div>
       </div>
