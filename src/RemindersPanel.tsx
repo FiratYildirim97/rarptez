@@ -117,11 +117,20 @@ export default function RemindersPanel({ patients, onPatientUpdated }: Reminders
   const openControlModal = (reminder: ReminderItem) => {
     const p = reminder.patient;
     const period = reminder.period;
-    setControlForm({
-      ipss: String(p[`ipss_${period}` as keyof Patient] ?? ''),
-      ieef: String(p[`iief_${period}` as keyof Patient] ?? ''),
-      iciqsf: String(p[`incontinence_${period}` as keyof Patient] ?? '')
-    });
+    if (period === '1m') {
+      // 1. ay: patoloji + PSA kontrolü
+      setControlForm({
+        ipss: String(p.pathology ?? ''),
+        ieef: String(p.postop_psa ?? ''),
+        iciqsf: String(p.surgical_margin ?? '')
+      });
+    } else {
+      setControlForm({
+        ipss: String(p[`ipss_${period}` as keyof Patient] ?? ''),
+        ieef: String(p[`iief_${period}` as keyof Patient] ?? ''),
+        iciqsf: String(p[`incontinence_${period}` as keyof Patient] ?? '')
+      });
+    }
     setControlModal({ reminder });
   };
 
@@ -134,9 +143,16 @@ export default function RemindersPanel({ patients, onPatientUpdated }: Reminders
     setSaving(true);
     const updates: Partial<Patient> = {};
 
-    if (controlForm.ipss !== '') updates[`ipss_${period}` as keyof Patient] = Number(controlForm.ipss) as any;
-    if (controlForm.ieef !== '') updates[`iief_${period}` as keyof Patient] = Number(controlForm.ieef) as any;
-    if (controlForm.iciqsf !== '') updates[`incontinence_${period}` as keyof Patient] = controlForm.iciqsf as any;
+    if (period === '1m') {
+      // 1. ay: patoloji + PSA + cerrahi sınır
+      if (controlForm.ipss !== '') updates.pathology = controlForm.ipss as any;
+      if (controlForm.ieef !== '') updates.postop_psa = Number(controlForm.ieef) as any;
+      if (controlForm.iciqsf !== '') updates.surgical_margin = controlForm.iciqsf as any;
+    } else {
+      if (controlForm.ipss !== '') updates[`ipss_${period}` as keyof Patient] = Number(controlForm.ipss) as any;
+      if (controlForm.ieef !== '') updates[`iief_${period}` as keyof Patient] = Number(controlForm.ieef) as any;
+      if (controlForm.iciqsf !== '') updates[`incontinence_${period}` as keyof Patient] = controlForm.iciqsf as any;
+    }
 
     const { error } = await supabase
       .from('patients')
@@ -362,9 +378,19 @@ export default function RemindersPanel({ patients, onPatientUpdated }: Reminders
                               {/* Bu periyoda ait mevcut değerler */}
                               <div className="bg-blue-100 rounded-xl p-4 border border-blue-300 shadow-sm">
                                 <p className="text-[10px] font-black text-blue-700 uppercase mb-2">{r.periodLabel} Mevcut Değerler</p>
-                                <p><span className="text-blue-600">IPSS:</span> <strong>{vals.ipss ?? <span className="text-rose-500">Girilmemiş</span>}</strong></p>
-                                <p><span className="text-blue-600">IIEF:</span> <strong>{vals.ieef ?? <span className="text-rose-500">Girilmemiş</span>}</strong></p>
-                                <p><span className="text-blue-600">ICIQ-SF:</span> <strong>{vals.iciqsf || <span className="text-rose-500">Girilmemiş</span>}</strong></p>
+                                {r.period === '1m' ? (
+                                  <>
+                                    <p><span className="text-blue-600">Patoloji:</span> <strong>{r.patient.pathology || <span className="text-rose-500">Girilmemiş</span>}</strong></p>
+                                    <p><span className="text-blue-600">Postop PSA:</span> <strong>{r.patient.postop_psa ?? <span className="text-rose-500">Girilmemiş</span>}</strong></p>
+                                    <p><span className="text-blue-600">Cerrahi Sınır:</span> <strong>{r.patient.surgical_margin || <span className="text-rose-500">Girilmemiş</span>}</strong></p>
+                                  </>
+                                ) : (
+                                  <>
+                                    <p><span className="text-blue-600">IPSS:</span> <strong>{vals.ipss ?? <span className="text-rose-500">Girilmemiş</span>}</strong></p>
+                                    <p><span className="text-blue-600">IIEF:</span> <strong>{vals.ieef ?? <span className="text-rose-500">Girilmemiş</span>}</strong></p>
+                                    <p><span className="text-blue-600">ICIQ-SF:</span> <strong>{vals.iciqsf || <span className="text-rose-500">Girilmemiş</span>}</strong></p>
+                                  </>
+                                )}
                                 <button
                                   onClick={() => openControlModal(r)}
                                   className="mt-3 w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-black rounded-lg flex items-center justify-center gap-1 transition-all"
@@ -400,38 +426,78 @@ export default function RemindersPanel({ patients, onPatientUpdated }: Reminders
             </div>
 
             <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-extrabold text-slate-700 mb-1">IPSS Skoru</label>
-                <input
-                  type="number"
-                  min="0" max="35"
-                  placeholder="0 - 35"
-                  value={controlForm.ipss}
-                  onChange={e => setControlForm(f => ({ ...f, ipss: e.target.value }))}
-                  className="w-full px-3 py-2.5 border-2 border-slate-300 rounded-xl text-sm font-bold focus:border-blue-600 focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-extrabold text-slate-700 mb-1">IIEF-5 Skoru</label>
-                <input
-                  type="number"
-                  min="1" max="25"
-                  placeholder="1 - 25"
-                  value={controlForm.ieef}
-                  onChange={e => setControlForm(f => ({ ...f, ieef: e.target.value }))}
-                  className="w-full px-3 py-2.5 border-2 border-slate-300 rounded-xl text-sm font-bold focus:border-blue-600 focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-extrabold text-slate-700 mb-1">ICIQ-SF</label>
-                <input
-                  type="text"
-                  placeholder="Örn: 0, 1, 2..."
-                  value={controlForm.iciqsf}
-                  onChange={e => setControlForm(f => ({ ...f, iciqsf: e.target.value }))}
-                  className="w-full px-3 py-2.5 border-2 border-slate-300 rounded-xl text-sm font-bold focus:border-blue-600 focus:outline-none"
-                />
-              </div>
+              {controlModal.reminder.period === '1m' ? (
+                // 1. Ay: Patoloji & PSA
+                <>
+                  <div>
+                    <label className="block text-xs font-extrabold text-slate-700 mb-1">Patoloji</label>
+                    <input
+                      type="text"
+                      placeholder="Örn: pT2a, pT3b ISUP2..."
+                      value={controlForm.ipss}
+                      onChange={e => setControlForm(f => ({ ...f, ipss: e.target.value }))}
+                      className="w-full px-3 py-2.5 border-2 border-slate-300 rounded-xl text-sm font-bold focus:border-blue-600 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-extrabold text-slate-700 mb-1">Postop PSA (ng/mL)</label>
+                    <input
+                      type="number"
+                      step="0.001"
+                      placeholder="Örn: 0.01"
+                      value={controlForm.ieef}
+                      onChange={e => setControlForm(f => ({ ...f, ieef: e.target.value }))}
+                      className="w-full px-3 py-2.5 border-2 border-slate-300 rounded-xl text-sm font-bold focus:border-blue-600 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-extrabold text-slate-700 mb-1">Cerrahi Sınır</label>
+                    <input
+                      type="text"
+                      placeholder="Pozitif / Negatif"
+                      value={controlForm.iciqsf}
+                      onChange={e => setControlForm(f => ({ ...f, iciqsf: e.target.value }))}
+                      className="w-full px-3 py-2.5 border-2 border-slate-300 rounded-xl text-sm font-bold focus:border-blue-600 focus:outline-none"
+                    />
+                  </div>
+                </>
+              ) : (
+                // 3 - 6 - 12. Ay: Fonksiyonel
+                <>
+                  <div>
+                    <label className="block text-xs font-extrabold text-slate-700 mb-1">IPSS Skoru</label>
+                    <input
+                      type="number"
+                      min="0" max="35"
+                      placeholder="0 - 35"
+                      value={controlForm.ipss}
+                      onChange={e => setControlForm(f => ({ ...f, ipss: e.target.value }))}
+                      className="w-full px-3 py-2.5 border-2 border-slate-300 rounded-xl text-sm font-bold focus:border-blue-600 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-extrabold text-slate-700 mb-1">IIEF-5 Skoru</label>
+                    <input
+                      type="number"
+                      min="1" max="25"
+                      placeholder="1 - 25"
+                      value={controlForm.ieef}
+                      onChange={e => setControlForm(f => ({ ...f, ieef: e.target.value }))}
+                      className="w-full px-3 py-2.5 border-2 border-slate-300 rounded-xl text-sm font-bold focus:border-blue-600 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-extrabold text-slate-700 mb-1">ICIQ-SF</label>
+                    <input
+                      type="text"
+                      placeholder="Örn: 0, 1, 2..."
+                      value={controlForm.iciqsf}
+                      onChange={e => setControlForm(f => ({ ...f, iciqsf: e.target.value }))}
+                      className="w-full px-3 py-2.5 border-2 border-slate-300 rounded-xl text-sm font-bold focus:border-blue-600 focus:outline-none"
+                    />
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="flex gap-3 pt-2 border-t border-slate-200">

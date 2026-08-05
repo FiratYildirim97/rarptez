@@ -304,33 +304,40 @@ export default function PatientList({ patients, onEdit, onDelete, onAddNew }: Pa
             {/* Follow-up timeline */}
             <div className="border-t-2 border-slate-200 pt-4">
               <h4 className="text-xs font-black text-slate-900 uppercase mb-3">Fonksiyonel Takip Özeti</h4>
-              <div className="grid grid-cols-4 gap-2 text-center text-xs font-bold">
-                <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-slate-900">
-                  <span className="font-black text-blue-900 block border-b border-blue-200 pb-1 mb-1">1. Ay</span>
-                  <p>IPSS: {selectedPatient.ipss_1m ?? '-'}</p>
-                  <p>IEEF: {selectedPatient.iief_1m ?? '-'}</p>
-                  <p>ICIQ-SF: {selectedPatient.incontinence_1m || '-'}</p>
+
+              {/* 1. Ay - Patoloji & PSA Kontrolü (fonksiyonel değil) */}
+              <div className="mb-3 p-3 bg-purple-50 border border-purple-200 rounded-xl text-xs font-bold text-slate-900">
+                <span className="font-black text-purple-800 block border-b border-purple-200 pb-1 mb-2 uppercase text-[10px]">1. Ay — Patoloji & PSA Kontrolü</span>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div><p className="text-slate-500">Patoloji</p><p className="font-black">{selectedPatient.pathology || '-'}</p></div>
+                  <div><p className="text-slate-500">Postop PSA</p><p className="font-black">{selectedPatient.postop_psa ?? '-'}</p></div>
+                  <div><p className="text-slate-500">Cerrahi Sınır</p><p className="font-black">{selectedPatient.surgical_margin || '-'}</p></div>
                 </div>
+              </div>
+
+              {/* Fonksiyonel Takip: 3 - 6 - 12. Ay */}
+              <div className="grid grid-cols-3 gap-2 text-center text-xs font-bold">
                 <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-slate-900">
                   <span className="font-black text-blue-900 block border-b border-blue-200 pb-1 mb-1">3. Ay</span>
                   <p>IPSS: {selectedPatient.ipss_3m ?? '-'}</p>
-                  <p>IEEF: {selectedPatient.iief_3m ?? '-'}</p>
+                  <p>IIEF: {selectedPatient.iief_3m ?? '-'}</p>
                   <p>ICIQ-SF: {selectedPatient.incontinence_3m || '-'}</p>
                 </div>
                 <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-slate-900">
                   <span className="font-black text-blue-900 block border-b border-blue-200 pb-1 mb-1">6. Ay</span>
                   <p>IPSS: {selectedPatient.ipss_6m ?? '-'}</p>
-                  <p>IEEF: {selectedPatient.iief_6m ?? '-'}</p>
+                  <p>IIEF: {selectedPatient.iief_6m ?? '-'}</p>
                   <p>ICIQ-SF: {selectedPatient.incontinence_6m || '-'}</p>
                 </div>
                 <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-slate-900">
                   <span className="font-black text-blue-900 block border-b border-blue-200 pb-1 mb-1">12. Ay</span>
                   <p>IPSS: {selectedPatient.ipss_12m ?? '-'}</p>
-                  <p>IEEF: {selectedPatient.iief_12m ?? '-'}</p>
+                  <p>IIEF: {selectedPatient.iief_12m ?? '-'}</p>
                   <p>ICIQ-SF: {selectedPatient.incontinence_12m || '-'}</p>
                 </div>
               </div>
             </div>
+
           </div>
         </div>
       )}
